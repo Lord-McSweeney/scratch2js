@@ -8,47 +8,89 @@
         <br>
         <canvas id="mainCanvas" width="480" height="360" style="height: 360px; width: 480px; border: 1px solid gray;" tabindex="1"></canvas>
         <script>
-            let canvas = document.getElementById("mainCanvas");
-            let ctx = canvas.getContext("2d");
-            let targets = [];
-            let existingSprites = [];
+            const canvas = document.getElementById("mainCanvas");
+            const ctx = canvas.getContext("2d");
+            const targets = [];
+            const renderList = [];
 
-            let onStartListeners = [];
-            let broadcastListeners = [];
-            let pendingBroadcasts = new Set();
+            const globalVariables = new Map();
+
+            const onStartListeners = [];
+            const broadcastListeners = [];
+            const whenGreaterThanListeners = [];
+            const pendingBroadcasts = new Set();
             let handlingPendingBroadcasts = false;
 
             let mouseX = 0;
             let mouseY = 0;
+            let mouseBeingPressed = false;
 
             let canvasRect = canvas.getBoundingClientRect();
             canvas.addEventListener("mousemove", function(e) {
+                if (e.buttons) {
+                    mouseBeingPressed = true;
+                }
                 mouseX = e.clientX - canvasRect.left;
                 mouseY = e.clientY - canvasRect.top;
+            });
+            canvas.addEventListener("mouseup", function(e) {
+                if (e.buttons) {
+                    mouseBeingPressed = true;
+                }
+            });
+            canvas.addEventListener("mousedown", function(e) {
+                if (e.buttons) {
+                    mouseBeingPressed = true;
+                }
             });
 
             function sleep(ms) {
                 return new Promise((resolve) => setTimeout(resolve, ms));
             }
 
+            function handleBroadcast(pendingBroadcast) {
+                for (let i in broadcastListeners) {
+                    if (broadcastListeners[i].name === pendingBroadcast) {
+                        broadcastListeners[i].callback();
+                        doRender();
+                    }
+                }
+            }
+
+            async function handleBroadcastSync(pendingBroadcast) {
+                const callbackList = [];
+                for (let i in broadcastListeners) {
+                    if (broadcastListeners[i].name === pendingBroadcast) {
+                        callbackList.push(broadcastListeners[i].callback);
+                    }
+                }
+
+                return new Promise(function(resolve) {
+                    let finished = 0;
+                    for (let i in callbackList) {
+                        callbackList[i]().then((value) => {
+                            finished += 1;
+                            if (finished === callbackList.length) {
+                                resolve();
+                            }
+                        });
+                    }
+                });
+            }
+
             function handlePendingBroadcasts() {
                 let pendingBroadcastsArr = Array.from(pendingBroadcasts);
                 for (let i in pendingBroadcastsArr) {
                     const pendingBroadcast = pendingBroadcastsArr[i];
-                    for (let j in broadcastListeners) {
-                        if (broadcastListeners[j].name === pendingBroadcast) {
-                            broadcastListeners[j].callback();
-                            doRender();
-                        }
-                    }
                     pendingBroadcasts.delete(pendingBroadcast);
+                    handleBroadcast(pendingBroadcast);
                 }
             }
 
             let doRender = function() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                for (let i in existingSprites) {
-                    existingSprites[i].render();
+                for (let i in renderList) {
+                    renderList[i].render();
                 }
 
                 if (!handlingPendingBroadcasts) {
@@ -57,6 +99,20 @@
                     handlingPendingBroadcasts = false;
                 }
             };
+
+            let renderWrapper = async function() {
+                let beforeTime = Date.now();
+                await doRender();
+                let afterTime = Date.now();
+
+                let usedTime = 30 - (afterTime - beforeTime);
+                if (usedTime < 1) {
+                    usedTime = 1;
+                }
+
+                setTimeout(renderWrapper, usedTime);
+            }
+            setTimeout(renderWrapper, 30);
 
             let createSpriteConstructor = function(
                 name,
@@ -67,6 +123,7 @@
                 costumes,
                 currentCostume,
                 rotationStyle,
+                isStage,
 
                 onInitCode,
             ) {
@@ -84,6 +141,7 @@
                     this.costumes = costumes;
                     this.currentCostume = currentCostume;
                     this.rotationStyle = rotationStyle;
+                    this.isStage = isStage;
                     this.visible = visible;
                     this.cachedCostumeImages = new Map();
                     this.effects = {
@@ -91,9 +149,51 @@
                         brightness: 0,
                     };
 
+                    this.getVariable = function(varName) {
+                        if (globalVariables.has(varName)) {
+                            let result = globalVariables.get(varName);
+
+                            return result;
+                        } else if (this.isStage) {
+                            // Stage doesn't have local variables.
+                            throw new Error("Tried to get nonexistent variable");
+                        } else {
+                            // TODO local variables
+                            // How does local/global priority work? Seems like Scratch IDE
+                            // doesn't allow creating local variables with same name
+                            // as global ones.
+                            return null;
+                        }
+                    };
+
+                    this.changeVariableBy = function(varName, increase) {
+                        if (globalVariables.has(varName)) {
+                            let oldValue = parseFloat(globalVariables.get(varName).toString());
+                            if (isNaN(oldValue)) {
+                                oldValue = 0;
+                            }
+
+                            globalVariables.set(varName, oldValue + increase);
+                        } else if (this.isStage) {
+                            throw new Error("Tried to set nonexistent variable");
+                        } else {
+                            // TODO local variables
+                        }
+                    };
+
+                    this.setVariable = function(varName, value) {
+                        if (globalVariables.has(varName)) {
+                            globalVariables.set(varName, value);
+                        } else if (this.isStage) {
+                            throw new Error("Tried to set nonexistent variable");
+                        } else {
+                            // TODO local variables
+                        }
+                    };
+
                     // Scratch direction is weird. The "direction" in Scratch is
                     // stored in degrees, and it is the mathematical direction minus
-                    // 90 degrees. We always store the mathematical direction.
+                    // 90 degrees. We always store the mathematical direction (in degrees).
                     this.turn = function(amount) {
                         let tempDirection = this.direction + (amount % 360);
                         if (tempDirection < 0) {
@@ -147,27 +247,12 @@
                             this.y = oldY + yChange * runSeconds;
                             runSeconds += interval;
 
-                            let initTime = Date.now();
-                            await doRender();
-                            let curTime = Date.now();
-
-                            // doRender is slow. Make sure to sleep less
-                            // if a lot of time passed in doRender.
-                            let sleepTime = Math.max(0, (1000 * interval) - (curTime - initTime));
-                            await sleep(sleepTime);
+                            await sleep(1000 * interval);
                         }
                     };
 
                     this.screenRefresh = async function() {
-                        await sleep(1);
-                        if (this.visible) {
-                            let initTime = Date.now();
-                            await doRender();
-                            let curTime = Date.now();
-
-                            let sleepTime = Math.max(0, 30 - (curTime - initTime));
-                            await sleep(sleepTime);
-                        }
+                        await sleep(33);
                     };
 
                     this.nextCostume = async function() {
@@ -240,27 +325,47 @@
                         switch (this.rotationStyle) {
                             case "all around":
                                 return this.direction;
+                            case "left-right":
+                                if (this.direction >= 270 || this.direction <= 90) {
+                                    return 0;
+                                } else {
+                                    return 180;
+                                }
                             default:
                                 throw new Error("Unknown or unimplemented rotation style \"" + this.rotationStyle + "\"");
                         }
                     };
 
                     this.render = async function() {
-                        if (this.visible) {
+                        const bitmapResolution = this.costumes[this.currentCostume].bitmapResolution;
+                        let image = this.cachedCostumeImages.get(this.currentCostume);
+                        if (image === undefined) {
+                            // Ensure the image is loaded
+                            await this.changeCostumeByIndex(this.currentCostume);
+                            image = this.cachedCostumeImages.get(this.currentCostume);
+                        }
+
+                        if (this.isStage) {
+                            ctx.save();
+
+                            if (bitmapResolution !== 1) {
+                                ctx.scale(1 / bitmapResolution, 1 / bitmapResolution);
+                            }
+                            this.recalcCoords();
+                            try {
+                                ctx.drawImage(image, Math.floor(this.calcX), Math.floor(this.calcY));
+                            } catch {}
+
+                            ctx.restore();
+                        } else if (this.visible) {
                             this.recalcCoords();
                             let direction = this.getDirection();
 
-                            const bitmapResolution = this.costumes[this.currentCostume].bitmapResolution;
-                            let image = this.cachedCostumeImages.get(this.currentCostume);
-                            if (image === undefined) {
-                                // Ensure the image is loaded
-                                await this.changeCostumeByIndex(this.currentCostume);
-                                image = this.cachedCostumeImages.get(this.currentCostume);
-                            }
-
                             ctx.save();
 
-                            if (direction === 0 && this.size === 100 && this.effects.ghost === 0) {
+                            if (direction === 0 && this.size === 100 && bitmapResolution === 1 && this.effects.ghost === 0) {
+                                ctx.globalAlpha = 1;
+                            } else {
                                 ctx.translate(this.x, this.y);
 
                                 // Transformations go below
@@ -305,7 +410,7 @@
                 for (let i in targets) {
                     const sprite = new targets[i].ctor(false, targets[i].visible);
                     await sprite.waitForInit();
-                    existingSprites.push(sprite);
+                    renderList.push(sprite);
                 }
             }
 

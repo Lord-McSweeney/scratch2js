@@ -1,9 +1,8 @@
 /*
-NOTES
+TODO
 
-handle pending broadcasts right after doRender()
-repeated broadcast operations only count once
-    (pending broadcasts are a Set?)
+Procedures
+Stop (all/this sprite)
 */
 
 const fs = require("fs");
@@ -17,7 +16,7 @@ const { processBlock, processToplevelBlocks } = require("./blockProcessor.js");
 
 const assetPath = path.join(__dirname, "assets/");
 
-async function convertTarget(targetInfo) {
+function convertStageTarget(targetInfo) {
     let runnableCode = "";
 
     let toplevelBlocks = [];
@@ -27,8 +26,67 @@ async function convertTarget(targetInfo) {
         }
     }
 
+    // Parse top-level blocks
     runnableCode += processToplevelBlocks(targetInfo.blocks, toplevelBlocks);
 
+    let code = "";
+
+    // Initialize global variables
+    const variables = targetInfo.variables;
+    for (let i in variables) {
+        const variable = variables[i];
+
+        // TODO does this even matter? Are all variables just strings?
+        let realString = null;
+        if (typeof variable[1] === "number") {
+            realString = variable[1].toString();
+        } else {
+            realString = "\"" + sanitizeString(variable[1]) + "\"";
+        }
+
+        code += `
+        globalVariables.set("${sanitizeString(i)}", ${realString});
+`;
+    }
+
+    // Finally, create stage constructor
+    code += `
+        targets.push({
+            ctor: createSpriteConstructor(
+                "${sanitizeString(targetInfo.name)}",
+                240,
+                180,
+                100,
+                0,
+                ${JSON.stringify(targetInfo.costumes)},
+                ${targetInfo.currentCostume},
+                "all around",
+                true,
+                function(isClone) {
+${runnableCode}
+                }
+            ),
+            visible: true,
+        });
+`;
+
+    return code;
+}
+
+function convertTarget(targetInfo) {
+    let runnableCode = "";
+
+    let toplevelBlocks = [];
+    for (let i in targetInfo.blocks) {
+        if (targetInfo.blocks[i].topLevel) {
+            toplevelBlocks.push(targetInfo.blocks[i]);
+        }
+    }
+
+    // Parse top-level blocks
+    runnableCode += processToplevelBlocks(targetInfo.blocks, toplevelBlocks);
+
+    // Create sprite constructor
     let code = `
         targets.push({
             ctor: createSpriteConstructor(
@@ -40,8 +98,9 @@ async function convertTarget(targetInfo) {
                 ${JSON.stringify(targetInfo.costumes)},
                 ${targetInfo.currentCostume},
                 "${sanitizeString(targetInfo.rotationStyle)}",
+                false,
                 function(isClone) {
-    ${runnableCode}
+${runnableCode}
                 }
             ),
             visible: ${targetInfo.visible},
@@ -51,7 +110,7 @@ async function convertTarget(targetInfo) {
     return code;
 }
 
-async function convertProject(projectData) {
+function convertProject(projectData) {
     const data = JSON.parse(projectData);
 
     let code = "";
@@ -64,10 +123,10 @@ async function convertProject(projectData) {
                 return "";
             }
 
-            warn("Converting stage not yet implemented");
+            code += convertStageTarget(targets[i]);
             encounteredStageTarget = true;
         } else {
-            code += await convertTarget(targets[i]);
+            code += convertTarget(targets[i]);
         }
     }
 
@@ -106,7 +165,7 @@ async function main() {
             const file = files[i];
             const readData = fs.readFileSync("/tmp/scratch-extraction/" + file);
             if (file === "project.json") {
-                const result = await convertProject(readData.toString("utf8"));
+                const result = convertProject(readData.toString("utf8"));
                 fs.writeFileSync("./output/index.html", result);
             } else {
                 if (file.endsWith(".svg") || file.endsWith(".png") || file.endsWith(".wav")) {

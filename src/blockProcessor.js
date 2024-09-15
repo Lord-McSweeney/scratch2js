@@ -6,6 +6,7 @@ const ENSURE_NUMERIC = 2;
 
 function processValueBlock(block, blocks) {
     const inputs = block.inputs;
+    const fields = block.fields;
 
     switch (block.opcode) {
         case "operator_and":
@@ -57,6 +58,18 @@ function processValueBlock(block, blocks) {
                 const rht = getValueFromInput(inputs.NUM2, blocks, ENSURE_NUMERIC);
                 return "(" + lht + " / " + rht + ")";
             }
+        case "operator_mod":
+            {
+                const lht = getValueFromInput(inputs.NUM1, blocks, ENSURE_NUMERIC);
+                const rht = getValueFromInput(inputs.NUM2, blocks, ENSURE_NUMERIC);
+                return "(" + lht + " % " + rht + ")";
+            }
+        case "operator_multiply":
+            {
+                const lht = getValueFromInput(inputs.NUM1, blocks, ENSURE_NUMERIC);
+                const rht = getValueFromInput(inputs.NUM2, blocks, ENSURE_NUMERIC);
+                return "(" + lht + " * " + rht + ")";
+            }
         case "operator_subtract":
             {
                 const lht = getValueFromInput(inputs.NUM1, blocks, ENSURE_NUMERIC);
@@ -68,13 +81,44 @@ function processValueBlock(block, blocks) {
             {
                 const from = parseFloat(getValueFromInput(inputs.FROM, blocks, ENSURE_NUMERIC));
                 const to = parseFloat(getValueFromInput(inputs.TO, blocks, ENSURE_NUMERIC));
-                if (Math.floor(from) !== from || Math.floor(to) !== to) {
-                    fatal("operator_random with non-integral operands not implemented");
-                }
 
                 const toMinusFrom = to - from;
 
-                return `Math.floor(Math.random() * (${toMinusFrom} + 1) + ${from})`;
+                if (Math.floor(from) !== from || Math.floor(to) !== to) {
+                    return `Math.random() * ${toMinusFrom} + ${from}`;
+                } else {
+                    return `Math.floor(Math.random() * (${toMinusFrom} + 1) + ${from})`;
+                }
+            }
+
+        case "operator_mathop":
+            {
+                if (!fields.OPERATOR) {
+                    warn("operator_mathop missing OPERATOR field");
+                    return "0";
+                }
+
+                const operator = fields.OPERATOR[0];
+                const operand = getValueFromInput(inputs.NUM, blocks, ENSURE_NUMERIC);
+                switch(operator) {
+                    case "abs":
+                        return "Math.abs(" + operand + ")";
+                    case "cos":
+                        return "Math.cos(" + operand + ")";
+                    case "floor":
+                        return "Math.floor(" + operand + ")";
+                    case "sin":
+                        return "Math.sin(" + operand + ")";
+                    default:
+                        fatal("Unimplemented mathop \"" + operator + "\"");
+                }
+            }
+
+        case "operator_join":
+            {
+                const lht = getValueFromInput(inputs.STRING1, blocks, ANY_TYPE);
+                const rht = getValueFromInput(inputs.STRING2, blocks, ANY_TYPE);
+                return "(" + lht + ".toString() + " + rht + ".toString())";
             }
 
         case "looks_size":
@@ -82,10 +126,42 @@ function processValueBlock(block, blocks) {
                 return "this.size";
             }
 
+        case "looks_costumenumbername":
+            {
+                const frontOrBack = fields.NUMBER_NAME[0];
+                switch(frontOrBack) {
+                    case "name":
+                        return "(this.costumes[this.currentCostume].name)";
+                    case "number":
+                        fatal("NUMBER_NAME for number is unimplemented");
+                        break;
+                    default:
+                        fatal("Invalid NUMBER_NAME field; should be either 'number' or 'name'");
+                }
+            }
+
         case "motion_xposition":
             {
                 return "(this.x - 240)";
             }
+        case "motion_yposition":
+            {
+                return "(180 - this.y)";
+            }
+
+        case "sensing_mousex":
+            {
+                return "mouseX";
+            }
+        case "sensing_mousey":
+            {
+                return "mouseY";
+            }
+        case "sensing_mousedown":
+            {
+                return "mouseBeingPressed";
+            }
+
         default:
             debug(block);
             error("Unknown or implemented value block " + block.opcode);
@@ -120,8 +196,11 @@ function getValueFromInput(input, blocks, type) {
         } else if (input[0] === 2 || input[0] === 3) {
             let block = null;
             if (Array.isArray(input[1])) {
-                warn("Unimplemented variables");
-                return "null";
+                if (type === ENSURE_NUMERIC) {
+                    return "parseFloat(this.getVariable(\"" + sanitizeString(input[1][2]) + "\"))";
+                } else {
+                    return "this.getVariable(\"" + sanitizeString(input[1][2]) + "\")";
+                }
             } else {
                 block = blocks[input[1]];
                 if (block === undefined) {
@@ -139,6 +218,7 @@ function processBlock(block, blocks, tabLevel) {
     let result = "    ".repeat(tabLevel) + "{\n";
     tabLevel ++;
     const inputs = block.inputs;
+    const fields = block.fields;
 
     let emitStatement = function(statement) {
         result += "    ".repeat(tabLevel);
@@ -184,14 +264,14 @@ function processBlock(block, blocks, tabLevel) {
             {
                 let newX = getValueFromInput(inputs.X, blocks, ENSURE_NUMERIC);
 
-                emitStatement("this.moveTo(" + newX + ", this.y);");
+                emitStatement("this.moveTo(" + newX + ", 180 - this.y);");
             }
             break;
         case "motion_sety":
             {
                 let newY = getValueFromInput(inputs.Y, blocks, ENSURE_NUMERIC);
 
-                emitStatement("this.moveTo(this.x, " + newY + ");");
+                emitStatement("this.moveTo(this.x - 240, " + newY + ");");
             }
             break;
 
@@ -253,13 +333,8 @@ function processBlock(block, blocks, tabLevel) {
                             }
                         }
                     } else if (costume.length === 3 && costume[0] === 3) {
-                        const block = blocks[costume[1]];
-                        if (block === undefined) {
-                            fatal("Expression referred to invalid block");
-                        } else {
-                            const data = processValueBlock(block, blocks);
-                            emitStatement("await this.changeCostume(" + data + ");");
-                        }
+                        const data = getValueFromInput(costume, blocks, ANY_TYPE);
+                        emitStatement("await this.changeCostume(" + data + ");");
                     } else {
                         fatal("Unknown or unimplemented inputs.COSTUME handling");
                     }
@@ -293,12 +368,25 @@ function processBlock(block, blocks, tabLevel) {
         case "looks_changeeffectby":
             {
                 let change = getValueFromInput(inputs.CHANGE, blocks, ENSURE_NUMERIC);
-                let effect = block.fields.EFFECT;
+                let effect = fields.EFFECT;
                 if (!effect || effect.length !== 2 || effect[1] !== null) {
                     fatal("Unknown or unimplemented looks_changeeffectby EFFECT magics");
                 } else {
                     let realEffect = effect[0];
                     emitStatement("this.effects['" + realEffect.toLowerCase() + "'] += " + change + ";");
+                }
+            }
+            break;
+
+        case "looks_seteffectto":
+            {
+                let change = getValueFromInput(inputs.VALUE, blocks, ENSURE_NUMERIC);
+                let effect = fields.EFFECT;
+                if (!effect) {
+                    fatal("Invalid looks_seteffectto EFFECT");
+                } else {
+                    let realEffect = effect[0];
+                    emitStatement("this.effects['" + realEffect.toLowerCase() + "'] = " + change + ";");
                 }
             }
             break;
@@ -315,11 +403,53 @@ function processBlock(block, blocks, tabLevel) {
             }
             break;
 
+        case "looks_gotofrontback":
+            {
+                const frontOrBack = fields.FRONT_BACK[0];
+                switch(frontOrBack) {
+                    case "front":
+                        emitStatement("if (renderList.includes(this)) {");
+                        emitStatement("    renderList.push(renderList.splice(renderList.indexOf(this), 1)[0]);");
+                        emitStatement("}");
+                        break;
+                    case "back":
+                        emitStatement("if (renderList.includes(this)) {");
+                        emitStatement("    renderList.unshift(renderList.splice(renderList.indexOf(this), 1)[0]);");
+                        emitStatement("}");
+                        break;
+                    default:
+                        fatal("Invalid FRONT_BACK field; should be either 'front' or 'back'");
+                }
+            }
+            break;
+
         case "control_wait":
             {
                 let duration = getValueFromInput(inputs.DURATION, blocks, ENSURE_NUMERIC);
                 emitStatement("await new Promise((resolve) => setTimeout(resolve, " + (duration * 1000) + "));");
             }
+            break;
+
+        case "control_wait_until":
+            {
+                let condition = inputs.CONDITION;
+                if (!condition || (condition[0] === 1 && condition[1] === null)) {
+                    break;
+                }
+
+                if (condition.length !== 2) {
+                    fatal("Unknown or unimplemented inputs.CONDITION info");
+                } else if (condition[0] !== 2) {
+                    fatal("Unknown or unimplemented inputs.CONDITION magics");
+                }
+
+                let serializedCondition = processValueBlock(blocks[condition[1]], blocks);
+
+                emitStatement("while (!(" + serializedCondition + ")) {");
+                emitStatement("    await this.screenRefresh();");
+                emitStatement("}");
+            }
+            break;
             break;
 
         case "control_forever":
@@ -386,7 +516,11 @@ function processBlock(block, blocks, tabLevel) {
         case "control_repeat_until":
             {
                 let condition = inputs.CONDITION;
-                if (!condition || condition.length !== 2) {
+                if (!condition || (condition[0] === 1 && condition[1] === null)) {
+                    break;
+                }
+
+                if (condition.length !== 2) {
                     fatal("Unknown or unimplemented inputs.CONDITION info");
                 } else if (condition[0] !== 2) {
                     fatal("Unknown or unimplemented inputs.CONDITION magics");
@@ -510,7 +644,7 @@ function processBlock(block, blocks, tabLevel) {
                             if (towardsData[0] === "_myself_") {
                                 emitStatement("const sprite = new (this.createSelf)(true, this.visible);");
                                 emitStatement("await sprite.waitForInit();");
-                                emitStatement("existingSprites.push(sprite);");
+                                emitStatement("renderList.push(sprite);");
                             } else {
                                 fatal("Unknown or nuimplemented control_create_clone_of_menu CLONE_OPTION: " + towardsData[0]);
                             }
@@ -521,16 +655,43 @@ function processBlock(block, blocks, tabLevel) {
             break;
 
         case "control_delete_this_clone":
-            emitStatement("if (existingSprites.includes(this) && this.isClone) {");
-            emitStatement("    existingSprites.splice(existingSprites.indexOf(this), 1);");
-            emitStatement("}");
-            emitStatement("return;");
+            {
+                emitStatement("if (renderList.includes(this) && this.isClone) {");
+                emitStatement("    renderList.splice(renderList.indexOf(this), 1);");
+                emitStatement("}");
+                emitStatement("return;");
+            }
+            break;
+
+        case "data_setvariableto":
+            {
+                const variableName = "\"" + sanitizeString(fields.VARIABLE[1]) + "\"";
+                const value = getValueFromInput(inputs.VALUE, blocks, ANY_TYPE);
+
+                emitStatement("this.setVariable(" + variableName + ", " + value + ");");
+            }
+            break;
+
+        case "data_changevariableby":
+            {
+                const variableName = "\"" + sanitizeString(fields.VARIABLE[1]) + "\"";
+                const value = getValueFromInput(inputs.VALUE, blocks, ANY_TYPE);
+
+                emitStatement("this.changeVariableBy(" + variableName + ", " + value + ");");
+            }
             break;
 
         case "event_broadcast":
             {
-                let broadcastName = getValueFromInput(inputs.BROADCAST_INPUT, blocks, ANY_TYPE);
+                const broadcastName = getValueFromInput(inputs.BROADCAST_INPUT, blocks, ANY_TYPE);
                 emitStatement("pendingBroadcasts.add(" + broadcastName + ");");
+            }
+            break;
+        case "event_broadcastandwait":
+            {
+                const broadcastName = getValueFromInput(inputs.BROADCAST_INPUT, blocks, ANY_TYPE);
+                // We don't even need to go through the pendingBroadcast machinery.
+                emitStatement("await handleBroadcastSync(" + broadcastName + ");");
             }
             break;
 
@@ -552,7 +713,7 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
     for (let i in toplevelBlocks) {
         let currentBlockCode = "";
         let block = toplevelBlocks[i];
-        let tabLevel = 4;
+        let tabLevel = 5;
         switch (block.opcode) {
             case "event_whenflagclicked":
                 currentBlockCode += "    ".repeat(tabLevel) + "onStartListeners.push((async function() {\n";
