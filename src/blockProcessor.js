@@ -104,11 +104,11 @@ function processValueBlock(block, blocks) {
                     case "abs":
                         return "Math.abs(" + operand + ")";
                     case "cos":
-                        return "Math.cos(" + operand + ")";
+                        return "Math.cos((Math.PI / 180) * " + operand + ")";
                     case "floor":
                         return "Math.floor(" + operand + ")";
                     case "sin":
-                        return "Math.sin(" + operand + ")";
+                        return "Math.sin((Math.PI / 180) * " + operand + ")";
                     default:
                         fatal("Unimplemented mathop \"" + operator + "\"");
                 }
@@ -177,6 +177,7 @@ function getValueFromInput(input, blocks, type) {
                 case 4:
                 case 5:
                 case 6:
+                case 8:
                 case 10:
                     if (type === ENSURE_NUMERIC) {
                         return "" + parseFloat(input[1][1]);
@@ -229,7 +230,7 @@ function processBlock(block, blocks, tabLevel) {
     switch (block.opcode) {
         case "motion_movesteps":
             {
-                let moveAmount = getValueFromInput(inputs.STEPS, blocks, ENSURE_NUMERIC);
+                const moveAmount = getValueFromInput(inputs.STEPS, blocks, ENSURE_NUMERIC);
 
                 emitStatement("this.changeXBy(Math.cos(this.direction * Math.PI/180) * " + moveAmount + ");");
                 emitStatement("this.changeYBy(Math.sin(this.direction * Math.PI/180) * " + moveAmount + ");");
@@ -238,24 +239,46 @@ function processBlock(block, blocks, tabLevel) {
 
         case "motion_gotoxy":
             {
-                let xPos = getValueFromInput(inputs.X, blocks, ENSURE_NUMERIC);
-                let yPos = getValueFromInput(inputs.Y, blocks, ENSURE_NUMERIC);
-
+                const xPos = getValueFromInput(inputs.X, blocks, ENSURE_NUMERIC);
+                const yPos = getValueFromInput(inputs.Y, blocks, ENSURE_NUMERIC);
                 emitStatement("this.moveTo(" + xPos + ", " + yPos + ");");
+            }
+            break;
+
+        case "motion_goto":
+            {
+                let to = inputs.TO;
+                if (!to || to.length !== 2) {
+                    fatal("Unknown or unimplemented inputs.TO info");
+                } else {
+                    let block = blocks[to[1]];
+                    if (!block || block.opcode !== "motion_goto_menu") {
+                        fatal("Unknown or unimplemented inputs.TO child op");
+                    } else {
+                        let toData = block.fields.TO;
+                        if (!toData || toData.length !== 2 || toData[1] !== null) {
+                            fatal("Unknown or unimplemented motion_goto_menu TO magics");
+                        } else {
+                            if (toData[0] === "_random_") {
+                                emitStatement("this.moveTo(Math.floor(Math.random() * 480 - 240), Math.floor(Math.random() * 360 - 180));");
+                            } else {
+                                fatal("Unknown or unimplemented motion_goto_menu TOWARDS: " + toData[0]);
+                            }
+                        }
+                    }
+                }
             }
             break;
 
         case "motion_changexby":
             {
-                let xChange = getValueFromInput(inputs.DX, blocks, ENSURE_NUMERIC);
-
+                const xChange = getValueFromInput(inputs.DX, blocks, ENSURE_NUMERIC);
                 emitStatement("this.changeXBy(" + xChange + ");");
             }
             break;
         case "motion_changeyby":
             {
-                let yChange = getValueFromInput(inputs.DY, blocks, ENSURE_NUMERIC);
-
+                const yChange = getValueFromInput(inputs.DY, blocks, ENSURE_NUMERIC);
                 emitStatement("this.changeYBy(" + yChange + ");");
             }
             break;
@@ -263,14 +286,12 @@ function processBlock(block, blocks, tabLevel) {
         case "motion_setx":
             {
                 let newX = getValueFromInput(inputs.X, blocks, ENSURE_NUMERIC);
-
                 emitStatement("this.moveTo(" + newX + ", 180 - this.y);");
             }
             break;
         case "motion_sety":
             {
-                let newY = getValueFromInput(inputs.Y, blocks, ENSURE_NUMERIC);
-
+                const newY = getValueFromInput(inputs.Y, blocks, ENSURE_NUMERIC);
                 emitStatement("this.moveTo(this.x - 240, " + newY + ");");
             }
             break;
@@ -278,7 +299,7 @@ function processBlock(block, blocks, tabLevel) {
         case "motion_turnleft":
         case "motion_turnright":
             {
-                let turnAmount = getValueFromInput(inputs.DEGREES, blocks, ENSURE_NUMERIC);
+                const turnAmount = getValueFromInput(inputs.DEGREES, blocks, ENSURE_NUMERIC);
 
                 if (block.opcode === "motion_turnright") {
                     turnAmount = -turnAmount;
@@ -310,6 +331,13 @@ function processBlock(block, blocks, tabLevel) {
                         }
                     }
                 }
+            }
+            break;
+
+        case "motion_pointindirection":
+            {
+                const direction = getValueFromInput(inputs.DIRECTION, blocks, ENSURE_NUMERIC);
+                emitStatement("this.direction = " + direction + " - 90;");
             }
             break;
 
@@ -675,7 +703,7 @@ function processBlock(block, blocks, tabLevel) {
         case "data_changevariableby":
             {
                 const variableName = "\"" + sanitizeString(fields.VARIABLE[1]) + "\"";
-                const value = getValueFromInput(inputs.VALUE, blocks, ANY_TYPE);
+                const value = getValueFromInput(inputs.VALUE, blocks, ENSURE_NUMERIC);
 
                 emitStatement("this.changeVariableBy(" + variableName + ", " + value + ");");
             }
