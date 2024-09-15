@@ -1,0 +1,306 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <title> Converted Scratch Project </title>
+    </head>
+    <body>
+        <button id="start">Start</button>
+        <br>
+        <canvas id="mainCanvas" width="480" height="360" style="height: 360px; width: 480px; border: 1px solid gray;" tabindex="1"></canvas>
+        <script>
+            let canvas = document.getElementById("mainCanvas");
+            let ctx = canvas.getContext("2d");
+            let targets = [];
+            let existingSprites = [];
+
+            let onStartListeners = [];
+            let broadcastListeners = [];
+            let pendingBroadcasts = new Set();
+            let handlingPendingBroadcasts = false;
+
+            let mouseX = 0;
+            let mouseY = 0;
+
+            let canvasRect = canvas.getBoundingClientRect();
+            canvas.addEventListener("mousemove", function(e) {
+                mouseX = e.clientX - canvasRect.left;
+                mouseY = e.clientY - canvasRect.top;
+            });
+
+            function sleep(ms) {
+                return new Promise((resolve) => setTimeout(resolve, ms));
+            }
+
+            function handlePendingBroadcasts() {
+                let pendingBroadcastsArr = Array.from(pendingBroadcasts);
+                for (let i in pendingBroadcastsArr) {
+                    const pendingBroadcast = pendingBroadcastsArr[i];
+                    for (let j in broadcastListeners) {
+                        if (broadcastListeners[j].name === pendingBroadcast) {
+                            broadcastListeners[j].callback();
+                            doRender();
+                        }
+                    }
+                    pendingBroadcasts.delete(pendingBroadcast);
+                }
+            }
+
+            let doRender = function() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                for (let i in existingSprites) {
+                    existingSprites[i].render();
+                }
+
+                if (!handlingPendingBroadcasts) {
+                    handlingPendingBroadcasts = true;
+                    handlePendingBroadcasts();
+                    handlingPendingBroadcasts = false;
+                }
+            };
+
+            let createSpriteConstructor = function(
+                name,
+                x,
+                y,
+                size,
+                direction,
+                costumes,
+                currentCostume,
+                rotationStyle,
+
+                onInitCode,
+            ) {
+                return function(isClone, visible) {
+                    console.log("Instantiating sprite \"" + name + "\" (clone: " + isClone + ")");
+                    this.createSelf = arguments.callee;
+
+                    this.isClone = isClone;
+                    this.onStartAsClone = [];
+                    this.name = name;
+                    this.x = x;
+                    this.y = y;
+                    this.size = size;
+                    this.direction = direction;
+                    this.costumes = costumes;
+                    this.currentCostume = currentCostume;
+                    this.rotationStyle = rotationStyle;
+                    this.visible = visible;
+                    this.cachedCostumeImages = new Map();
+                    this.effects = {
+                        ghost: 0,
+                        brightness: 0,
+                    };
+
+                    // Scratch direction is weird. The "direction" in Scratch is
+                    // stored in degrees, and it is the mathematical direction minus
+                    // 90 degrees. We always store the mathematical direction.
+                    this.turn = function(amount) {
+                        let tempDirection = this.direction + (amount % 360);
+                        if (tempDirection < 0) {
+                            tempDirection = 360 + tempDirection;
+                        }
+                        if (tempDirection >= 360) {
+                            tempDirection = tempDirection - 360;
+                        }
+
+                        this.direction = tempDirection;
+                    };
+
+                    this.pointTowardsMouse = function() {
+                        let tempDirection = (180 / Math.PI) * Math.atan2(this.y - mouseY, mouseX - this.x);
+                        if (tempDirection < 0) {
+                            tempDirection = 360 + tempDirection;
+                        }
+                        if (tempDirection >= 360) {
+                            tempDirection = tempDirection - 360;
+                        }
+
+                        this.direction = tempDirection;
+                    };
+
+                    // The logic to prevent a sprite from going offscreen is /very/
+                    // weird and seems to depend on the sprite image itself rather
+                    // than the centerpoint or the x-coord.
+                    this.changeXBy = function(amount) {
+                        this.x += amount;
+                    };
+
+                    this.changeYBy = function(amount) {
+                        this.y -= amount;
+                    };
+
+                    this.moveTo = function(x, y) {
+                        this.x = 240 + x;
+                        this.y = 180 - y;
+                    };
+
+                    this.glideXYSecs = async function(secs, x, y) {
+                        let interval = 0.04;
+                        let runSeconds = interval;
+                        let xChange = ((240 + x) - this.x) / secs;
+                        let yChange = ((180 - y) - this.y) / secs;
+                        let oldX = this.x;
+                        let oldY = this.y;
+
+                        console.log(Date.now());
+                        while (runSeconds <= secs) {
+                            this.x = oldX + xChange * runSeconds;
+                            this.y = oldY + yChange * runSeconds;
+                            runSeconds += interval;
+                            await sleep(1000 * interval);
+                            await doRender();
+                        }
+                        console.log(Date.now());
+                    };
+
+                    this.screenRefresh = async function() {
+                        await sleep(1);
+                        if (this.visible) {
+                            await sleep(30);
+                            await doRender();
+                        }
+                    };
+
+                    this.nextCostume = async function() {
+                        let next = this.currentCostume + 1;
+                        if (next >= this.costumes.length) {
+                            next = 0;
+                        }
+
+                        await this.changeCostumeByIndex(next);
+                    };
+
+                    this.changeCostume = async function(name) {
+                        let costumeIndex = -1;
+                        // Find the costume
+                        for (let i = 0; i < this.costumes.length; i ++) {
+                            if (this.costumes[i].name === name) {
+                                costumeIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (costumeIndex === -1) {
+                            throw new Error("Attempted to switch costume to nonexistent one");
+                        }
+
+                        await this.changeCostumeByIndex(costumeIndex);
+                    };
+
+                    this.changeCostumeByIndex = async function(index) {
+                        this.currentCostume = index;
+                        this.recalcCoords();
+
+                        if (!this.cachedCostumeImages.has(index)) {
+                            const image = new Image();
+                            const canvas = document.createElement("canvas");
+
+                            const costumesStored = this.costumes;
+
+                            await new Promise(function(resolve, reject) {
+                                image.onload = function(e) {
+                                    // Wait for image to load
+                                    canvas.width = image.width;
+                                    canvas.height = image.height;
+                                    canvas.getContext('2d').drawImage(image, 0, 0);
+                                    resolve();
+                                };
+
+                                // If it takes more than 5 seconds to load, reject
+                                setTimeout(reject, 5000);
+
+                                image.src = costumesStored[index].md5ext;
+                            });
+
+                            this.cachedCostumeImages.set(index, canvas);
+                        }
+                    };
+
+                    this.recalcCoords = function() {
+                        this.calcX = this.x - this.costumes[this.currentCostume].rotationCenterX;
+                        this.calcY = this.y - this.costumes[this.currentCostume].rotationCenterY;
+                    };
+
+                    this.getDirection = function() {
+                        switch (this.rotationStyle) {
+                            case "all around":
+                                return this.direction;
+                            default:
+                                throw new Error("Unknown or unimplemented rotation style \"" + this.rotationStyle + "\"");
+                        }
+                    };
+
+                    this.render = async function() {
+                        if (this.visible) {
+                            this.recalcCoords();
+                            let direction = this.getDirection();
+
+                            const bitmapResolution = this.costumes[this.currentCostume].bitmapResolution;
+                            let image = this.cachedCostumeImages.get(this.currentCostume);
+                            if (image === undefined) {
+                                // Ensure the image is loaded
+                                await this.changeCostumeByIndex(this.currentCostume);
+                                image = this.cachedCostumeImages.get(this.currentCostume);
+                            }
+
+                            ctx.save();
+
+                            if (direction === 0 && this.size === 100 && this.effects.ghost === 0) {
+                                ctx.translate(this.x, this.y);
+
+                                // Transformations go below
+                                ctx.scale((this.size / 100) / bitmapResolution, (this.size / 100) / bitmapResolution);
+                                ctx.rotate(-(Math.PI / 180) * direction);
+                                let alpha = 1 - (this.effects.ghost / 100);
+                                if (alpha < 0) {
+                                    alpha = 0;
+                                }
+                                ctx.globalAlpha = alpha;
+                            }
+
+                            ctx.translate(-this.x, -this.y);
+
+                            // Actually draw the image
+                            try {
+                                ctx.drawImage(image, Math.floor(this.calcX), Math.floor(this.calcY));
+                            } catch {}
+
+                            ctx.restore();
+                        }
+                    };
+
+                    this.onInitCode = onInitCode;
+                    this.onInitCode(isClone);
+
+                    this.waitForInit = async function() {
+                        // Initialize costume
+                        await this.changeCostumeByIndex(this.currentCostume);
+                        if (isClone) {
+                            for (let i in this.onStartAsClone) {
+                                this.onStartAsClone[i]();
+                            }
+                        }
+                    }
+                };
+            };
+
+            ##code##
+
+            async function initPrimordialSprites() {
+                for (let i in targets) {
+                    const sprite = new targets[i].ctor(false, targets[i].visible);
+                    await sprite.waitForInit();
+                    existingSprites.push(sprite);
+                }
+            }
+
+            initPrimordialSprites();
+
+            document.getElementById("start").onclick = function() {
+                for (let i in onStartListeners) {
+                    onStartListeners[i]();
+                }
+            }
+        </script>
+    </body>
+</html>
