@@ -18,13 +18,14 @@
 
             const onStartListeners = [];
             const broadcastListeners = [];
-            const whenGreaterThanListeners = [];
             const pendingBroadcasts = new Set();
             let handlingPendingBroadcasts = false;
 
             let mouseX = 0;
             let mouseY = 0;
             let mouseBeingPressed = false;
+
+            const pressedKeys = new Map();
 
             let canvasRect = canvas.getBoundingClientRect();
             canvas.addEventListener("mousemove", function(e) {
@@ -44,6 +45,30 @@
                     mouseBeingPressed = true;
                 }
             });
+
+            canvas.addEventListener("keydown", function(e) {
+                if (!e.ctrlKey && !e.altKey) {
+                    e.preventDefault();
+                    pressedKeys.set(e.key, true);
+                }
+            });
+            canvas.addEventListener("keyup", function(e) {
+                if (!e.ctrlKey && !e.altKey) {
+                    e.preventDefault();
+                    pressedKeys.set(e.key, false);
+                }
+            });
+
+            function isAnyKeyDown() {
+                const pressedKeysArr = Array.from(pressedKeys);
+                for (let i in pressedKeysArr) {
+                    if (pressedKeysArr[i]) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
 
             function sleep(ms) {
                 return new Promise((resolve) => setTimeout(resolve, ms));
