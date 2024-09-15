@@ -162,16 +162,28 @@ function processValueBlock(block, blocks) {
                 return "mouseBeingPressed";
             }
 
+        case "sensing_keypressed":
+            {
+                const testedKey = blocks[inputs.KEY_OPTION[1]].fields.KEY_OPTION[0];
+                if (testedKey === "any") {
+                    return "isAnyKeyDown()";
+                } else {
+                    return "(!!(pressedKeys.get(\"" + sanitizeString(testedKey) + "\")))"
+                }
+            }
+            break;
+
         default:
             debug(block);
-            error("Unknown or implemented value block " + block.opcode);
+            error("Unknown or unimplemented value block '" + block.opcode + "'");
             return "null";
     }
 }
 
 function getValueFromInput(input, blocks, type) {
         if (!input) {
-            fatal("Invalid input info");
+            warn("getValueFromInput passed empty input");
+            return "null";
         } else if (input[0] === 1) {
             switch(input[1][0]) {
                 case 4:
@@ -451,6 +463,35 @@ function processBlock(block, blocks, tabLevel) {
             }
             break;
 
+        case "looks_switchbackdropto":
+            {
+                let backdrop = inputs.BACKDROP;
+                if (!backdrop) {
+                    fatal("Unknown or unimplemented inputs.BACKDROP info" + JSON.stringify(backdrop));
+                } else {
+                    if (backdrop.length === 2) {
+                        let block = blocks[backdrop[1]];
+                        if (!block || block.opcode !== "looks_backdrops") {
+                            fatal("Unknown or unimplemented inputs.BACKDROP child op");
+                        } else {
+                            let backdropData = block.fields.BACKDROP;
+                            if (!backdropData) {
+                                fatal("Invalid looks_backdrops BACKDROP magics");
+                            } else {
+                                let realBackdrop = backdropData[0];
+                                emitStatement("await stageSprite.changeCostume(\"" + sanitizeString(realBackdrop) + "\");");
+                            }
+                        }
+                    } else if (backdrop.length === 3 && backdrop[0] === 3) {
+                        const data = getValueFromInput(backdrop, blocks, ANY_TYPE);
+                        emitStatement("await stageSprite.changeCostume(" + data + ");");
+                    } else {
+                        fatal("Unknown or unimplemented inputs.BACKDROP handling");
+                    }
+                }
+            }
+            break;
+
         case "control_wait":
             {
                 let duration = getValueFromInput(inputs.DURATION, blocks, ENSURE_NUMERIC);
@@ -513,7 +554,9 @@ function processBlock(block, blocks, tabLevel) {
             {
                 let repeatCount = getValueFromInput(inputs.TIMES, blocks, ENSURE_NUMERIC);
                 let substack = inputs.SUBSTACK;
-                if (!substack || substack.length !== 2) {
+                if (!substack) {
+                    break;
+                } else if (substack.length !== 2) {
                     fatal("Unknown or unimplemented inputs.SUBSTACK info");
                 } else if (substack[0] !== 2) {
                     fatal("Unknown or unimplemented inputs.SUBSTACK magics");
@@ -588,7 +631,9 @@ function processBlock(block, blocks, tabLevel) {
             {
                 // Condition
                 let condition = inputs.CONDITION;
-                if (!condition || condition.length !== 2) {
+                if (!condition) {
+                    break;
+                } else if(condition.length !== 2) {
                     fatal("Unknown or unimplemented inputs.CONDITION info");
                 } else if (condition[0] !== 2) {
                     fatal("Unknown or unimplemented inputs.CONDITION magics");
@@ -599,7 +644,9 @@ function processBlock(block, blocks, tabLevel) {
                 // Handle If
                 {
                     let substack = inputs.SUBSTACK;
-                    if (!substack || substack.length !== 2) {
+                    if (!substack) {
+                        break;
+                    } else if (substack.length !== 2) {
                         fatal("Unknown or unimplemented inputs.SUBSTACK info");
                     } else if (substack[0] !== 2) {
                         fatal("Unknown or unimplemented inputs.SUBSTACK magics");
@@ -678,7 +725,7 @@ function processBlock(block, blocks, tabLevel) {
                                 emitStatement("await sprite.waitForInit();");
                                 emitStatement("renderList.push(sprite);");
                             } else {
-                                fatal("Unknown or nuimplemented control_create_clone_of_menu CLONE_OPTION: " + towardsData[0]);
+                                warn("Unknown or unimplemented control_create_clone_of_menu CLONE_OPTION: " + towardsData[0]);
                             }
                         }
                     }
@@ -815,7 +862,16 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
                 break;
 
             default:
-                warn("Unknown or unimplemented toplevel block '" + block.opcode + "'");
+                if (
+                    !block.opcode.startsWith("motion_") &&
+                    !block.opcode.startsWith("looks_") &&
+                    !block.opcode.startsWith("sound_") &&
+                    !block.opcode.startsWith("control_") &&
+                    !block.opcode.startsWith("sensing_") &&
+                    !block.opcode.startsWith("operator_")
+                ) {
+                    warn("Unknown or unimplemented toplevel block '" + block.opcode + "'");
+                }
                 break;
         }
 
