@@ -12,6 +12,7 @@
             const ctx = canvas.getContext("2d");
             const targets = [];
             const renderList = [];
+            let stageSprite = null;
 
             const globalVariables = new Map();
 
@@ -89,6 +90,9 @@
 
             let doRender = function() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Stage is always rendered below everything
+                stageSprite.render();
                 for (let i in renderList) {
                     renderList[i].render();
                 }
@@ -410,7 +414,11 @@
                 for (let i in targets) {
                     const sprite = new targets[i].ctor(false, targets[i].visible);
                     await sprite.waitForInit();
-                    renderList.push(sprite);
+                    if (!sprite.isStage) {
+                        renderList.push(sprite);
+                    } else {
+                        stageSprite = sprite;
+                    }
                 }
             }
 

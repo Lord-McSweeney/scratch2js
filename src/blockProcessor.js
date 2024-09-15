@@ -299,7 +299,7 @@ function processBlock(block, blocks, tabLevel) {
         case "motion_turnleft":
         case "motion_turnright":
             {
-                const turnAmount = getValueFromInput(inputs.DEGREES, blocks, ENSURE_NUMERIC);
+                let turnAmount = getValueFromInput(inputs.DEGREES, blocks, ENSURE_NUMERIC);
 
                 if (block.opcode === "motion_turnright") {
                     turnAmount = -turnAmount;
@@ -353,8 +353,8 @@ function processBlock(block, blocks, tabLevel) {
                             fatal("Unknown or unimplemented inputs.COSTUME child op");
                         } else {
                             let costumeData = block.fields.COSTUME;
-                            if (!costumeData || costumeData.length !== 2 || costumeData[1] !== null) {
-                                fatal("Unknown or unimplemented looks_costume COSTUME magics");
+                            if (!costumeData) {
+                                fatal("Invalid looks_costume COSTUME magics");
                             } else {
                                 let realCostume = costumeData[0];
                                 emitStatement("await this.changeCostume(\"" + sanitizeString(realCostume) + "\");");
@@ -630,7 +630,11 @@ function processBlock(block, blocks, tabLevel) {
                 // Handle Else
                 if (block.opcode === "control_if_else") {
                     let substack = inputs.SUBSTACK2;
-                    if (!substack || substack.length !== 2) {
+                    if (!substack) {
+                        emitStatement("   // (empty)");
+                        emitStatement("}");
+                        break;
+                    } else if (substack.length !== 2) {
                         fatal("Unknown or unimplemented inputs.SUBSTACK2 info");
                     } else if (substack[0] !== 2) {
                         fatal("Unknown or unimplemented inputs.SUBSTACK2 magics");
