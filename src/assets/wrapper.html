@@ -180,6 +180,12 @@
                     };
 
                     this.changeCostume = async function(name) {
+                        if (typeof name === "number") {
+                            // Weirdly enough, this rounds the costume index
+                            await this.changeCostumeByIndex(Math.round(name) - 1);
+                            return;
+                        }
+
                         let costumeIndex = -1;
                         // Find the costume
                         for (let i = 0; i < this.costumes.length; i ++) {
@@ -189,14 +195,14 @@
                             }
                         }
 
-                        if (costumeIndex === -1) {
-                            throw new Error("Attempted to switch costume to nonexistent one");
-                        }
-
                         await this.changeCostumeByIndex(costumeIndex);
                     };
 
                     this.changeCostumeByIndex = async function(index) {
+                        if (index < 0 || index >= this.costumes.length) {
+                            // Just silently bail out for invalid costumes.
+                            return;
+                        }
                         this.currentCostume = index;
                         this.recalcCoords();
 
@@ -265,9 +271,9 @@
                                     alpha = 0;
                                 }
                                 ctx.globalAlpha = alpha;
-                            }
 
-                            ctx.translate(-this.x, -this.y);
+                                ctx.translate(-this.x, -this.y);
+                            }
 
                             // Actually draw the image
                             try {
