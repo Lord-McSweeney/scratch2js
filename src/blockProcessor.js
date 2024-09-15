@@ -521,7 +521,7 @@ function processBlock(block, blocks, tabLevel) {
             break;
 
         case "control_delete_this_clone":
-            emitStatement("if (existingSprites.includes(this)) {");
+            emitStatement("if (existingSprites.includes(this) && this.isClone) {");
             emitStatement("    existingSprites.splice(existingSprites.indexOf(this), 1);");
             emitStatement("}");
             emitStatement("return;");
@@ -543,7 +543,7 @@ function processBlock(block, blocks, tabLevel) {
     tabLevel --;
     result += "    ".repeat(tabLevel);
     result += "}\n";
-    
+
     return result;
 }
 
@@ -625,7 +625,7 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
                 warn("Unknown or unimplemented toplevel block '" + block.opcode + "'");
                 break;
         }
-        
+
         resultingCode += currentBlockCode;
     }
 
