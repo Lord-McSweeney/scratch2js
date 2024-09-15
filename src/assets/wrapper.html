@@ -142,22 +142,31 @@
                         let oldX = this.x;
                         let oldY = this.y;
 
-                        console.log(Date.now());
                         while (runSeconds <= secs) {
                             this.x = oldX + xChange * runSeconds;
                             this.y = oldY + yChange * runSeconds;
                             runSeconds += interval;
-                            await sleep(1000 * interval);
+
+                            let initTime = Date.now();
                             await doRender();
+                            let curTime = Date.now();
+
+                            // doRender is slow. Make sure to sleep less
+                            // if a lot of time passed in doRender.
+                            let sleepTime = Math.max(0, (1000 * interval) - (curTime - initTime));
+                            await sleep(sleepTime);
                         }
-                        console.log(Date.now());
                     };
 
                     this.screenRefresh = async function() {
                         await sleep(1);
                         if (this.visible) {
-                            await sleep(30);
+                            let initTime = Date.now();
                             await doRender();
+                            let curTime = Date.now();
+
+                            let sleepTime = Math.max(0, 30 - (curTime - initTime));
+                            await sleep(sleepTime);
                         }
                     };
 
