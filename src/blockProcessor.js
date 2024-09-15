@@ -151,11 +151,11 @@ function processValueBlock(block, blocks) {
 
         case "sensing_mousex":
             {
-                return "mouseX";
+                return "(mouseX - 240)";
             }
         case "sensing_mousey":
             {
-                return "mouseY";
+                return "(180 - mouseY)";
             }
         case "sensing_mousedown":
             {
@@ -164,11 +164,27 @@ function processValueBlock(block, blocks) {
 
         case "sensing_keypressed":
             {
-                const testedKey = blocks[inputs.KEY_OPTION[1]].fields.KEY_OPTION[0];
+                let testedKey = blocks[inputs.KEY_OPTION[1]].fields.KEY_OPTION[0];
                 if (testedKey === "any") {
                     return "isAnyKeyDown()";
                 } else {
-                    return "(!!(pressedKeys.get(\"" + sanitizeString(testedKey) + "\")))"
+                    if (testedKey.length === 1) {
+                        return "(!!(pressedKeys.get(\"" + sanitizeString(testedKey) + "\")))";
+                    } else {
+                        switch (testedKey) {
+                            case "up arrow":
+                                return "(!!(pressedKeys.get(\"ArrowUp\")))";
+                            case "down arrow":
+                                return "(!!(pressedKeys.get(\"ArrowDown\")))";
+                            case "left arrow":
+                                return "(!!(pressedKeys.get(\"ArrowLeft\")))";
+                            case "right arrow":
+                                return "(!!(pressedKeys.get(\"ArrowRight\")))";
+
+                            default:
+                                fatal("Unknown key: " + testedKey);
+                        }
+                    }
                 }
             }
             break;
