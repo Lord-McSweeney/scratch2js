@@ -1,31 +1,144 @@
 const { sanitizeString } = require("./utils.js");
 const { debug, info, warn, error, fatal } = require("./logging.js");
 
+const ANY_TYPE = 1;
+const ENSURE_NUMERIC = 2;
+
+function processValueBlock(block, blocks) {
+    const inputs = block.inputs;
+
+    switch (block.opcode) {
+        case "operator_and":
+            {
+                const lht = getValueFromInput(inputs.OPERAND1, blocks, ANY_TYPE);
+                const rht = getValueFromInput(inputs.OPERAND2, blocks, ANY_TYPE);
+                return "(" + lht + " && " + rht + ")";
+            }
+        case "operator_or":
+            {
+                const lht = getValueFromInput(inputs.OPERAND1, blocks, ANY_TYPE);
+                const rht = getValueFromInput(inputs.OPERAND2, blocks, ANY_TYPE);
+                return "(" + lht + " || " + rht + ")";
+            }
+        case "operator_not":
+            {
+                const operand = getValueFromInput(inputs.OPERAND, blocks, ANY_TYPE);
+                return "(!" + operand + ")";
+            }
+
+        case "operator_equals":
+            {
+                const lht = getValueFromInput(inputs.OPERAND1, blocks, ANY_TYPE);
+                const rht = getValueFromInput(inputs.OPERAND2, blocks, ANY_TYPE);
+                return "(" + lht + " == " + rht + ")";
+            }
+        case "operator_gt":
+            {
+                const lht = getValueFromInput(inputs.OPERAND1, blocks, ANY_TYPE);
+                const rht = getValueFromInput(inputs.OPERAND2, blocks, ANY_TYPE);
+                return "(" + lht + " > " + rht + ")";
+            }
+        case "operator_lt":
+            {
+                const lht = getValueFromInput(inputs.OPERAND1, blocks, ANY_TYPE);
+                const rht = getValueFromInput(inputs.OPERAND2, blocks, ANY_TYPE);
+                return "(" + lht + " < " + rht + ")";
+            }
+
+        case "operator_add":
+            {
+                const lht = getValueFromInput(inputs.NUM1, blocks, ENSURE_NUMERIC);
+                const rht = getValueFromInput(inputs.NUM2, blocks, ENSURE_NUMERIC);
+                return "(" + lht + " + " + rht + ")";
+            }
+        case "operator_divide":
+            {
+                const lht = getValueFromInput(inputs.NUM1, blocks, ENSURE_NUMERIC);
+                const rht = getValueFromInput(inputs.NUM2, blocks, ENSURE_NUMERIC);
+                return "(" + lht + " / " + rht + ")";
+            }
+        case "operator_subtract":
+            {
+                const lht = getValueFromInput(inputs.NUM1, blocks, ENSURE_NUMERIC);
+                const rht = getValueFromInput(inputs.NUM2, blocks, ENSURE_NUMERIC);
+                return "(" + lht + " - " + rht + ")";
+            }
+
+        case "operator_random":
+            {
+                const from = parseFloat(getValueFromInput(inputs.FROM, blocks, ENSURE_NUMERIC));
+                const to = parseFloat(getValueFromInput(inputs.TO, blocks, ENSURE_NUMERIC));
+                if (Math.floor(from) !== from || Math.floor(to) !== to) {
+                    fatal("operator_random with non-integral operands not implemented");
+                }
+
+                const toMinusFrom = to - from;
+
+                return `Math.floor(Math.random() * (${toMinusFrom} + 1) + ${from})`;
+            }
+
+        case "looks_size":
+            {
+                return "this.size";
+            }
+
+        case "motion_xposition":
+            {
+                return "(this.x - 240)";
+            }
+        default:
+            debug(block);
+            error("Unknown or implemented value block " + block.opcode);
+            return "null";
+    }
+}
+
+function getValueFromInput(input, blocks, type) {
+        if (!input) {
+            fatal("Invalid input info");
+        } else if (input[0] === 1) {
+            switch(input[1][0]) {
+                case 4:
+                case 5:
+                case 6:
+                case 10:
+                    if (type === ENSURE_NUMERIC) {
+                        return "" + parseFloat(input[1][1]);
+                    } else {
+                        return "\"" + sanitizeString(input[1][1]) + "\"";
+                    }
+
+                case 11:
+                    if (type === ENSURE_NUMERIC) {
+                        error("Encountered non-numeric type but caller passed ENSURE_NUMERIC");
+                    }
+                    return "\"" + sanitizeString(input[1][1]) + "\"";
+
+                default:
+                    fatal("Unknown or unimplemented input magic: " + input[1][0]);
+            }
+        } else if (input[0] === 2 || input[0] === 3) {
+            let block = null;
+            if (Array.isArray(input[1])) {
+                warn("Unimplemented variables");
+                return "null";
+            } else {
+                block = blocks[input[1]];
+                if (block === undefined) {
+                    fatal("Expression referred to invalid block");
+                } else {
+                    return processValueBlock(block, blocks);
+                }
+            }
+        } else {
+            fatal("Unknown or unimplemented inputs magics");
+        }
+    }
+
 function processBlock(block, blocks, tabLevel) {
     let result = "    ".repeat(tabLevel) + "{\n";
     tabLevel ++;
     const inputs = block.inputs;
-
-    let getValueFromInput = function(input) {
-        if (!input || input.length !== 2) {
-            fatal("Unknown or unimplemented input info");
-        } else if (input[0] !== 1) {
-            fatal("Unknown or unimplemented inputs magics");
-        } else {
-            switch(input[1][0]) {
-                case 4:
-                    return parseInt(input[1][1]);
-                case 5:
-                    return parseFloat(input[1][1]);
-                case 6:
-                    return parseInt(input[1][1]);
-                case 11:
-                    return input[1][1];
-                default:
-                    fatal("Unknown or unimplemented input magic: " + input[1][0]);
-            }
-        }
-    }
 
     let emitStatement = function(statement) {
         result += "    ".repeat(tabLevel);
@@ -36,7 +149,7 @@ function processBlock(block, blocks, tabLevel) {
     switch (block.opcode) {
         case "motion_movesteps":
             {
-                let moveAmount = getValueFromInput(inputs.STEPS);
+                let moveAmount = getValueFromInput(inputs.STEPS, blocks, ENSURE_NUMERIC);
 
                 emitStatement("this.changeXBy(Math.cos(this.direction * Math.PI/180) * " + moveAmount + ");");
                 emitStatement("this.changeYBy(Math.sin(this.direction * Math.PI/180) * " + moveAmount + ");");
@@ -45,17 +158,47 @@ function processBlock(block, blocks, tabLevel) {
 
         case "motion_gotoxy":
             {
-                let xPos = getValueFromInput(inputs.X);
-                let yPos = getValueFromInput(inputs.Y);
+                let xPos = getValueFromInput(inputs.X, blocks, ENSURE_NUMERIC);
+                let yPos = getValueFromInput(inputs.Y, blocks, ENSURE_NUMERIC);
 
                 emitStatement("this.moveTo(" + xPos + ", " + yPos + ");");
+            }
+            break;
+
+        case "motion_changexby":
+            {
+                let xChange = getValueFromInput(inputs.DX, blocks, ENSURE_NUMERIC);
+
+                emitStatement("this.changeXBy(" + xChange + ");");
+            }
+            break;
+        case "motion_changeyby":
+            {
+                let yChange = getValueFromInput(inputs.DY, blocks, ENSURE_NUMERIC);
+
+                emitStatement("this.changeYBy(" + yChange + ");");
+            }
+            break;
+
+        case "motion_setx":
+            {
+                let newX = getValueFromInput(inputs.X, blocks, ENSURE_NUMERIC);
+
+                emitStatement("this.moveTo(" + newX + ", this.y);");
+            }
+            break;
+        case "motion_sety":
+            {
+                let newY = getValueFromInput(inputs.Y, blocks, ENSURE_NUMERIC);
+
+                emitStatement("this.moveTo(this.x, " + newY + ");");
             }
             break;
 
         case "motion_turnleft":
         case "motion_turnright":
             {
-                let turnAmount = getValueFromInput(inputs.DEGREES);
+                let turnAmount = getValueFromInput(inputs.DEGREES, blocks, ENSURE_NUMERIC);
 
                 if (block.opcode === "motion_turnright") {
                     turnAmount = -turnAmount;
@@ -110,8 +253,15 @@ function processBlock(block, blocks, tabLevel) {
                             }
                         }
                     } else if (costume.length === 3 && costume[0] === 3) {
-                        warn("Unimplemented expression parsing");
-                        emitStatement("// Unimplemented expression parsing");
+                        const block = blocks[costume[1]];
+                        if (block === undefined) {
+                            fatal("Expression referred to invalid block");
+                        } else {
+                            const data = processValueBlock(block, blocks);
+                            emitStatement("await this.changeCostume(" + data + ");");
+                        }
+                    } else {
+                        fatal("Unknown or unimplemented inputs.COSTUME handling");
                     }
                 }
             }
@@ -119,9 +269,9 @@ function processBlock(block, blocks, tabLevel) {
 
         case "motion_glidesecstoxy":
             {
-                let secs = getValueFromInput(inputs.SECS);
-                let xPos = getValueFromInput(inputs.X);
-                let yPos = getValueFromInput(inputs.Y);
+                let secs = getValueFromInput(inputs.SECS, blocks, ENSURE_NUMERIC);
+                let xPos = getValueFromInput(inputs.X, blocks, ENSURE_NUMERIC);
+                let yPos = getValueFromInput(inputs.Y, blocks, ENSURE_NUMERIC);
 
                 emitStatement("await this.glideXYSecs(" + secs + ", " + xPos + ", " + yPos + ");");
             }
@@ -135,20 +285,20 @@ function processBlock(block, blocks, tabLevel) {
 
         case "looks_setsizeto":
             {
-                let size = getValueFromInput(inputs.SIZE);
+                let size = getValueFromInput(inputs.SIZE, blocks, ENSURE_NUMERIC);
                 emitStatement("this.size = " + size + ";");
             }
             break;
 
         case "looks_changeeffectby":
             {
-                let change = getValueFromInput(inputs.CHANGE);
+                let change = getValueFromInput(inputs.CHANGE, blocks, ENSURE_NUMERIC);
                 let effect = block.fields.EFFECT;
                 if (!effect || effect.length !== 2 || effect[1] !== null) {
                     fatal("Unknown or unimplemented looks_changeeffectby EFFECT magics");
                 } else {
                     let realEffect = effect[0];
-                    emitStatement("this.effects['" + realEffect.toLowerCase() + "'] += " + change);
+                    emitStatement("this.effects['" + realEffect.toLowerCase() + "'] += " + change + ";");
                 }
             }
             break;
@@ -167,7 +317,7 @@ function processBlock(block, blocks, tabLevel) {
 
         case "control_wait":
             {
-                let duration = getValueFromInput(inputs.DURATION);
+                let duration = getValueFromInput(inputs.DURATION, blocks, ENSURE_NUMERIC);
                 emitStatement("await new Promise((resolve) => setTimeout(resolve, " + (duration * 1000) + "));");
             }
             break;
@@ -203,7 +353,7 @@ function processBlock(block, blocks, tabLevel) {
 
         case "control_repeat":
             {
-                let repeatCount = getValueFromInput(inputs.TIMES);
+                let repeatCount = getValueFromInput(inputs.TIMES, blocks, ENSURE_NUMERIC);
                 let substack = inputs.SUBSTACK;
                 if (!substack || substack.length !== 2) {
                     fatal("Unknown or unimplemented inputs.SUBSTACK info");
@@ -230,6 +380,116 @@ function processBlock(block, blocks, tabLevel) {
                 emitStatement("await this.screenRefresh();");
                 tabLevel --;
                 emitStatement("}");
+            }
+            break;
+
+        case "control_repeat_until":
+            {
+                let condition = inputs.CONDITION;
+                if (!condition || condition.length !== 2) {
+                    fatal("Unknown or unimplemented inputs.CONDITION info");
+                } else if (condition[0] !== 2) {
+                    fatal("Unknown or unimplemented inputs.CONDITION magics");
+                }
+
+                let serializedCondition = processValueBlock(blocks[condition[1]], blocks);
+
+                let substack = inputs.SUBSTACK;
+                if (!substack || substack.length !== 2) {
+                    fatal("Unknown or unimplemented inputs.SUBSTACK info");
+                } else if (substack[0] !== 2) {
+                    fatal("Unknown or unimplemented inputs.SUBSTACK magics");
+                }
+
+                emitStatement("while (!(" + serializedCondition + ")) {");
+                tabLevel ++;
+
+                let block = blocks[substack[1]];
+                while (true) {
+                    result += processBlock(block, blocks, tabLevel);
+                    result += "\n";
+                    if (block.next === null) {
+                        break;
+                    } else {
+                        block = blocks[block.next];
+                    }
+                }
+
+                emitStatement("await this.screenRefresh();");
+                tabLevel --;
+                emitStatement("}");
+            }
+            break;
+
+        case "control_if":
+        case "control_if_else":
+            {
+                // Condition
+                let condition = inputs.CONDITION;
+                if (!condition || condition.length !== 2) {
+                    fatal("Unknown or unimplemented inputs.CONDITION info");
+                } else if (condition[0] !== 2) {
+                    fatal("Unknown or unimplemented inputs.CONDITION magics");
+                }
+
+                let serializedCondition = processValueBlock(blocks[condition[1]], blocks);
+
+                // Handle If
+                {
+                    let substack = inputs.SUBSTACK;
+                    if (!substack || substack.length !== 2) {
+                        fatal("Unknown or unimplemented inputs.SUBSTACK info");
+                    } else if (substack[0] !== 2) {
+                        fatal("Unknown or unimplemented inputs.SUBSTACK magics");
+                    }
+
+                    emitStatement("if (" + serializedCondition + ") {");
+                    tabLevel ++;
+
+                    let childBlock = blocks[substack[1]];
+                    while (true) {
+                        result += processBlock(childBlock, blocks, tabLevel);
+                        result += "\n";
+                        if (childBlock.next === null) {
+                            break;
+                        } else {
+                            childBlock = blocks[childBlock.next];
+                        }
+                    }
+
+                    tabLevel --;
+                    if (block.opcode === "control_if_else") {
+                        emitStatement("} else {");
+                    } else {
+                        emitStatement("}");
+                    }
+                }
+
+                // Handle Else
+                if (block.opcode === "control_if_else") {
+                    let substack = inputs.SUBSTACK2;
+                    if (!substack || substack.length !== 2) {
+                        fatal("Unknown or unimplemented inputs.SUBSTACK2 info");
+                    } else if (substack[0] !== 2) {
+                        fatal("Unknown or unimplemented inputs.SUBSTACK2 magics");
+                    }
+
+                    tabLevel ++;
+
+                    let childBlock = blocks[substack[1]];
+                    while (true) {
+                        result += processBlock(childBlock, blocks, tabLevel);
+                        result += "\n";
+                        if (childBlock.next === null) {
+                            break;
+                        } else {
+                            childBlock = blocks[childBlock.next];
+                        }
+                    }
+
+                    tabLevel --;
+                    emitStatement("}");
+                }
             }
             break;
 
@@ -260,10 +520,17 @@ function processBlock(block, blocks, tabLevel) {
             }
             break;
 
+        case "control_delete_this_clone":
+            emitStatement("if (existingSprites.includes(this)) {");
+            emitStatement("    existingSprites.splice(existingSprites.indexOf(this), 1);");
+            emitStatement("}");
+            emitStatement("return;");
+            break;
+
         case "event_broadcast":
             {
-                let broadcastName = getValueFromInput(inputs.BROADCAST_INPUT);
-                emitStatement("pendingBroadcasts.add(\"" + sanitizeString(broadcastName) + "\");");
+                let broadcastName = getValueFromInput(inputs.BROADCAST_INPUT, blocks, ANY_TYPE);
+                emitStatement("pendingBroadcasts.add(" + broadcastName + ");");
             }
             break;
 
