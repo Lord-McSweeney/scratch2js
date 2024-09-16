@@ -61,6 +61,7 @@ function convertStageTarget(targetInfo) {
                 ${JSON.stringify(targetInfo.costumes)},
                 ${targetInfo.currentCostume},
                 "all around",
+                {},
                 true,
                 function(isClone) {
 ${runnableCode}
@@ -86,6 +87,13 @@ function convertTarget(targetInfo) {
     // Parse top-level blocks
     runnableCode += processToplevelBlocks(targetInfo.blocks, toplevelBlocks);
 
+    // Initialize local variables
+    const variables = targetInfo.variables;
+    const resultVariables = {};
+    for (let i in variables) {
+        resultVariables[i] = variables[i][1];
+    }
+
     // Create sprite constructor
     let code = `
         targets.push({
@@ -98,6 +106,7 @@ function convertTarget(targetInfo) {
                 ${JSON.stringify(targetInfo.costumes)},
                 ${targetInfo.currentCostume},
                 "${sanitizeString(targetInfo.rotationStyle)}",
+                ${JSON.stringify(resultVariables)},
                 false,
                 function(isClone) {
 ${runnableCode}

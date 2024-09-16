@@ -158,6 +158,7 @@
                 costumes,
                 currentCostume,
                 rotationStyle,
+                localVariables,
                 isStage,
 
                 onInitCode,
@@ -184,6 +185,8 @@
                         brightness: 0,
                     };
 
+                    this.localVariables = new Map(Object.entries(localVariables));
+
                     this.getVariable = function(varName) {
                         if (globalVariables.has(varName)) {
                             let result = globalVariables.get(varName);
@@ -193,11 +196,12 @@
                             // Stage doesn't have local variables.
                             throw new Error("Tried to get nonexistent variable");
                         } else {
-                            // TODO local variables
-                            // How does local/global priority work? Seems like Scratch IDE
-                            // doesn't allow creating local variables with same name
-                            // as global ones.
-                            return null;
+                            // TODO How does local/global priority work? Seems like
+                            // Scratch IDE doesn't allow creating local variables
+                            // with same name as global ones.
+                            let result = this.localVariables.get(varName);
+
+                            return result;
                         }
                     };
 
@@ -212,7 +216,13 @@
                         } else if (this.isStage) {
                             throw new Error("Tried to set nonexistent variable");
                         } else {
-                            // TODO local variables
+                            // TODO local/global priority
+                            let oldValue = parseFloat(this.localVariables.get(varName).toString());
+                            if (isNaN(oldValue)) {
+                                oldValue = 0;
+                            }
+
+                            this.localVariables.set(varName, oldValue + increase);
                         }
                     };
 
@@ -222,7 +232,8 @@
                         } else if (this.isStage) {
                             throw new Error("Tried to set nonexistent variable");
                         } else {
-                            // TODO local variables
+                            // TODO local/global priority
+                            this.localVariables.set(varName, value);
                         }
                     };
 
