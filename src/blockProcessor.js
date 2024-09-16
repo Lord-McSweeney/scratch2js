@@ -77,6 +77,12 @@ function processValueBlock(block, blocks) {
                 return "(" + lht + " - " + rht + ")";
             }
 
+        case "operator_round":
+            {
+                const operand = getValueFromInput(inputs.NUM, blocks, ENSURE_NUMERIC);
+                return "Math.round(" + operand + ")";
+            }
+
         case "operator_random":
             {
                 const from = parseFloat(getValueFromInput(inputs.FROM, blocks, ENSURE_NUMERIC));
@@ -103,12 +109,17 @@ function processValueBlock(block, blocks) {
                 switch(operator) {
                     case "abs":
                         return "Math.abs(" + operand + ")";
+                    case "ceiling":
+                        return "Math.ceil(" + operand + ")";
                     case "cos":
                         return "Math.cos((Math.PI / 180) * " + operand + ")";
                     case "floor":
                         return "Math.floor(" + operand + ")";
                     case "sin":
                         return "Math.sin((Math.PI / 180) * " + operand + ")";
+                    case "sqrt":
+                        return "Math.sqrt(" + operand + ")";
+
                     default:
                         fatal("Unimplemented mathop \"" + operator + "\"");
                 }
@@ -119,6 +130,19 @@ function processValueBlock(block, blocks) {
                 const lht = getValueFromInput(inputs.STRING1, blocks, ANY_TYPE);
                 const rht = getValueFromInput(inputs.STRING2, blocks, ANY_TYPE);
                 return "(" + lht + ".toString() + " + rht + ".toString())";
+            }
+
+        case "operator_contains":
+            {
+                const lht = getValueFromInput(inputs.STRING1, blocks, ANY_TYPE);
+                const rht = getValueFromInput(inputs.STRING2, blocks, ANY_TYPE);
+                return "(" + lht + ".toString().includes(" + rht + ".toString()))";
+            }
+
+        case "operator_length":
+            {
+                const operand = getValueFromInput(inputs.STRING, blocks, ANY_TYPE);
+                return "(" + operand + ".toString().length)";
             }
 
         case "looks_size":
@@ -374,6 +398,13 @@ function processBlock(block, blocks, tabLevel) {
             }
             break;
 
+        case "motion_setrotationstyle":
+            {
+                const rotationStyle = "\"" + sanitizeString(fields.STYLE[0]) + "\"";
+                emitStatement("this.rotationStyle = " + rotationStyle + ";");
+            }
+            break;
+
         case "looks_switchcostumeto":
             {
                 let costume = inputs.COSTUME;
@@ -419,6 +450,12 @@ function processBlock(block, blocks, tabLevel) {
             }
             break;
 
+        case "looks_changesizeby":
+            {
+                let change = getValueFromInput(inputs.CHANGE, blocks, ENSURE_NUMERIC);
+                emitStatement("this.size += " + change + ";");
+            }
+            break;
         case "looks_setsizeto":
             {
                 let size = getValueFromInput(inputs.SIZE, blocks, ENSURE_NUMERIC);
@@ -795,6 +832,13 @@ function processBlock(block, blocks, tabLevel) {
             }
             break;
 
+        case "procedures_call":
+            {
+                const procName = "\"" + sanitizeString(block.mutation.proccode) + "\"";
+                emitStatement("await (this.definedProcedures.get(" + procName + "))();");
+            }
+            break;
+
         default:
             warn("Unknown or unimplemented block '" + block.opcode + "'");
             debug(block);
@@ -877,6 +921,25 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
 
                 currentBlockCode += "    ".repeat(tabLevel);
                 currentBlockCode += "await this.screenRefresh();\n";
+
+                tabLevel --;
+                currentBlockCode += "    ".repeat(tabLevel) + "}).bind(this));\n";
+                break;
+
+            case "procedures_definition":
+                const metaInfoBlock = allBlocks[block.inputs.custom_block[1]];
+                const procName = "\"" + sanitizeString(metaInfoBlock.mutation.proccode) + "\"";
+
+                currentBlockCode += "    ".repeat(tabLevel) + "this.definedProcedures.set(" + procName + ", (async function() {\n";
+
+                tabLevel ++;
+                if (block.next !== null) {
+                    do {
+                        block = allBlocks[block.next];
+                        currentBlockCode += processBlock(block, allBlocks, tabLevel);
+                        currentBlockCode += "\n";
+                    } while (block.next !== null)
+                }
 
                 tabLevel --;
                 currentBlockCode += "    ".repeat(tabLevel) + "}).bind(this));\n";

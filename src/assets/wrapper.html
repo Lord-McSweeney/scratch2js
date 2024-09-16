@@ -185,6 +185,8 @@
                         brightness: 0,
                     };
 
+                    this.definedProcedures = new Map();
+
                     this.localVariables = new Map(Object.entries(localVariables));
 
                     this.getVariable = function(varName) {
@@ -367,15 +369,15 @@
                         this.calcY = this.y - this.costumes[this.currentCostume].rotationCenterY;
                     };
 
-                    this.getDirection = function() {
+                    this.getDirectionAndScaleXMultiplier = function() {
                         switch (this.rotationStyle) {
                             case "all around":
-                                return this.direction;
+                                return { direction: this.direction, scaleXM: 1 };
                             case "left-right":
                                 if (this.direction >= 270 || this.direction <= 90) {
-                                    return 0;
+                                    return { direction: 0, scaleXM: 1 };
                                 } else {
-                                    return 180;
+                                    return { direction: 0, scaleXM: -1 };
                                 }
                             default:
                                 throw new Error("Unknown or unimplemented rotation style \"" + this.rotationStyle + "\"");
@@ -405,7 +407,7 @@
                             ctx.restore();
                         } else if (this.visible) {
                             this.recalcCoords();
-                            let direction = this.getDirection();
+                            let { direction, scaleXM } = this.getDirectionAndScaleXMultiplier();
 
                             ctx.save();
 
@@ -415,7 +417,7 @@
                                 ctx.translate(this.x, this.y);
 
                                 // Transformations go below
-                                ctx.scale((this.size / 100) / bitmapResolution, (this.size / 100) / bitmapResolution);
+                                ctx.scale(scaleXM * ((this.size / 100) / bitmapResolution), (this.size / 100) / bitmapResolution);
                                 ctx.rotate(-(Math.PI / 180) * direction);
                                 let alpha = 1 - (this.effects.ghost / 100);
                                 if (alpha < 0) {

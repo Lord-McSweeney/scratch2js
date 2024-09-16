@@ -7,6 +7,8 @@ in the loop body (even if it's a no-op)
 Procedures
 
 Stop (all/this sprite)
+
+sprite-sprite/point-sprite intersections
 */
 
 const fs = require("fs");
