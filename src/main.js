@@ -1,7 +1,11 @@
 /*
 TODO
 
+Loops should only call screenRefresh if there is at least one motion/looks block
+in the loop body (even if it's a no-op)
+
 Procedures
+
 Stop (all/this sprite)
 */
 
