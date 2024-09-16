@@ -133,8 +133,7 @@ function processValueBlock(block, blocks) {
                     case "name":
                         return "(this.costumes[this.currentCostume].name)";
                     case "number":
-                        fatal("NUMBER_NAME for number is unimplemented");
-                        break;
+                        return "(this.currentCostume + 1)";
                     default:
                         fatal("Invalid NUMBER_NAME field; should be either 'number' or 'name'");
                 }
