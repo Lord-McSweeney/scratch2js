@@ -181,6 +181,12 @@ function processValueBlock(block, blocks) {
                             case "right arrow":
                                 return "(!!(pressedKeys.get(\"ArrowRight\")))";
 
+                            case "enter":
+                                return "(!!(pressedKeys.get(\"Enter\")))";
+
+                            case "space":
+                                return "(!!(pressedKeys.get(\" \")))";
+
                             default:
                                 fatal("Unknown key: " + testedKey);
                         }
