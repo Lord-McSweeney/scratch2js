@@ -187,7 +187,14 @@ function processValueBlock(block, blocks) {
 
         case "sensing_keypressed":
             {
-                let testedKey = blocks[inputs.KEY_OPTION[1]].fields.KEY_OPTION[0];
+                let testedKey = blocks[inputs.KEY_OPTION[1]].fields.KEY_OPTION;
+                if (testedKey === undefined) {
+                    warn("Unimplemented sensing_keypressed inputs");
+                    return "false";
+                }
+
+                testedKey = testedKey[0];
+
                 if (testedKey === "any") {
                     return "isAnyKeyDown()";
                 } else {
@@ -319,7 +326,7 @@ function processBlock(block, blocks, tabLevel) {
                             if (toData[0] === "_random_") {
                                 emitStatement("this.moveTo(Math.floor(Math.random() * 480 - 240), Math.floor(Math.random() * 360 - 180));");
                             } else {
-                                fatal("Unknown or unimplemented motion_goto_menu TOWARDS: " + toData[0]);
+                                error("Unknown or unimplemented motion_goto_menu TOWARDS: " + toData[0]);
                             }
                         }
                     }
@@ -383,7 +390,7 @@ function processBlock(block, blocks, tabLevel) {
                             if (towardsData[0] === "_mouse_") {
                                 emitStatement("this.pointTowardsMouse();");
                             } else {
-                                fatal("Unknown motion_pointtowards_menu TOWARDS: " + towardsData[0]);
+                                error("Unknown or unimplemented motion_pointtowards_menu TOWARDS: " + towardsData[0]);
                             }
                         }
                     }
@@ -693,8 +700,10 @@ function processBlock(block, blocks, tabLevel) {
                     break;
                 } else if(condition.length !== 2) {
                     fatal("Unknown or unimplemented inputs.CONDITION info");
-                } else if (condition[0] !== 2) {
-                    fatal("Unknown or unimplemented inputs.CONDITION magics");
+                }
+
+                if (condition[1] === null) {
+                    break;
                 }
 
                 let serializedCondition = processValueBlock(blocks[condition[1]], blocks);
@@ -706,8 +715,10 @@ function processBlock(block, blocks, tabLevel) {
                         break;
                     } else if (substack.length !== 2) {
                         fatal("Unknown or unimplemented inputs.SUBSTACK info");
-                    } else if (substack[0] !== 2) {
-                        fatal("Unknown or unimplemented inputs.SUBSTACK magics");
+                    }
+
+                    if (substack[1] === null) {
+                        break;
                     }
 
                     emitStatement("if (" + serializedCondition + ") {");
