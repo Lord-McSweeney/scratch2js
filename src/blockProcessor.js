@@ -225,59 +225,69 @@ function processValueBlock(block, blocks) {
             }
             break;
 
+        // Is there a difference between these two outside of the IDE?
+        case "argument_reporter_boolean":
+        case "argument_reporter_string_number":
+            {
+                // `methodArgs` and `argMapping` are only available within a defined method;
+                // this block will error if used outside of a method definition.
+                const argName = block.fields.VALUE[0];
+                return "methodArgs[argMapping.indexOf(\"" + sanitizeString(argName) + "\")]";
+            }
+
         default:
             debug(block);
             error("Unknown or unimplemented value block '" + block.opcode + "'");
-            return "null";
+            return "(/*Unimplemented value " + block.opcode + "*/ null)";
     }
 }
 
 function getValueFromInput(input, blocks, type) {
-        if (!input) {
-            warn("getValueFromInput passed empty input");
-            return "null";
-        } else if (input[0] === 1) {
-            switch(input[1][0]) {
-                case 4:
-                case 5:
-                case 6:
-                case 8:
-                case 10:
-                    if (type === ENSURE_NUMERIC) {
-                        return "" + parseFloat(input[1][1]);
-                    } else {
-                        return "\"" + sanitizeString(input[1][1]) + "\"";
-                    }
-
-                case 11:
-                    if (type === ENSURE_NUMERIC) {
-                        error("Encountered non-numeric type but caller passed ENSURE_NUMERIC");
-                    }
-                    return "\"" + sanitizeString(input[1][1]) + "\"";
-
-                default:
-                    fatal("Unknown or unimplemented input magic: " + input[1][0]);
-            }
-        } else if (input[0] === 2 || input[0] === 3) {
-            let block = null;
-            if (Array.isArray(input[1])) {
+    if (!input) {
+        warn("getValueFromInput passed empty input");
+        return "null";
+    } else if (input[0] === 1) {
+        switch(input[1][0]) {
+            case 4:
+            case 5:
+            case 6:
+            case 8:
+            case 10:
                 if (type === ENSURE_NUMERIC) {
-                    return "parseFloat(this.getVariable(\"" + sanitizeString(input[1][2]) + "\"))";
+                    return "" + parseFloat(input[1][1]);
                 } else {
-                    return "this.getVariable(\"" + sanitizeString(input[1][2]) + "\")";
+                    return "\"" + sanitizeString(input[1][1]) + "\"";
                 }
+
+            case 11:
+                if (type === ENSURE_NUMERIC) {
+                    error("Encountered non-numeric type but caller passed ENSURE_NUMERIC");
+                }
+                return "\"" + sanitizeString(input[1][1]) + "\"";
+
+            default:
+                fatal("Unknown or unimplemented input magic: " + input[1][0]);
+        }
+    } else if (input[0] === 2 || input[0] === 3) {
+        let block = null;
+        if (Array.isArray(input[1])) {
+            if (type === ENSURE_NUMERIC) {
+                return "parseFloat(this.getVariable(\"" + sanitizeString(input[1][2]) + "\"))";
             } else {
-                block = blocks[input[1]];
-                if (block === undefined) {
-                    fatal("Expression referred to invalid block");
-                } else {
-                    return processValueBlock(block, blocks);
-                }
+                return "this.getVariable(\"" + sanitizeString(input[1][2]) + "\")";
             }
         } else {
-            fatal("Unknown or unimplemented inputs magics");
+            block = blocks[input[1]];
+            if (block === undefined) {
+                fatal("Expression referred to invalid block");
+            } else {
+                return processValueBlock(block, blocks);
+            }
         }
+    } else {
+        fatal("Unknown or unimplemented inputs magics");
     }
+}
 
 function processBlock(block, blocks, tabLevel) {
     let result = "    ".repeat(tabLevel) + "{\n";
@@ -853,8 +863,17 @@ function processBlock(block, blocks, tabLevel) {
 
         case "procedures_call":
             {
-                const procName = "\"" + sanitizeString(block.mutation.proccode) + "\"";
-                emitStatement("await (this.definedProcedures.get(" + procName + "))();");
+                const mutationInfo = block.mutation;
+                const argumentIds = JSON.parse(mutationInfo.argumentids);
+                const procName = "\"" + sanitizeString(mutationInfo.proccode) + "\"";
+                emitStatement("const procInfo = this.definedProcedures.get(" + procName + ")");
+                emitStatement("const methodArgs = [");
+                for (let i in argumentIds) {
+                    const value = getValueFromInput(inputs[argumentIds[i]], blocks, ANY_TYPE);
+                    emitStatement("    " + value + ",");
+                }
+                emitStatement("];");
+                emitStatement("await (procInfo.method)(methodArgs, procInfo.argumentnames);");
             }
             break;
 
@@ -946,12 +965,15 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
                 break;
 
             case "procedures_definition":
-                const metaInfoBlock = allBlocks[block.inputs.custom_block[1]];
-                const procName = "\"" + sanitizeString(metaInfoBlock.mutation.proccode) + "\"";
+                const mutationInfo = allBlocks[block.inputs.custom_block[1]].mutation;
+                const procName = "\"" + sanitizeString(mutationInfo.proccode) + "\"";
 
-                currentBlockCode += "    ".repeat(tabLevel) + "this.definedProcedures.set(" + procName + ", (async function() {\n";
-
+                currentBlockCode += "    ".repeat(tabLevel) + "this.definedProcedures.set(" + procName + ", {\n";
                 tabLevel ++;
+
+                currentBlockCode += "    ".repeat(tabLevel) + "method: (async function(methodArgs, argMapping) {\n";
+                tabLevel ++;
+
                 if (block.next !== null) {
                     do {
                         block = allBlocks[block.next];
@@ -961,7 +983,14 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
                 }
 
                 tabLevel --;
-                currentBlockCode += "    ".repeat(tabLevel) + "}).bind(this));\n";
+                currentBlockCode += "    ".repeat(tabLevel) + "}).bind(this),\n";
+
+                // The format stores both of these in JSON form, so we can just copy it into here.
+                currentBlockCode += "    ".repeat(tabLevel) + "argumentids: " + mutationInfo.argumentids + ",\n";
+                currentBlockCode += "    ".repeat(tabLevel) + "argumentnames: " + mutationInfo.argumentnames + ",\n";
+
+                tabLevel --;
+                currentBlockCode += "    ".repeat(tabLevel) + "});\n";
                 break;
 
             default:
