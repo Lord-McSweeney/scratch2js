@@ -178,6 +178,10 @@ function processValueBlock(block, blocks) {
             {
                 return "(180 - this.y)";
             }
+        case "motion_direction":
+            {
+                return "((90 - this.direction <= -180) ? (450 - this.direction) : (90 - this.direction))";
+            }
 
         case "sensing_mousex":
             {
