@@ -239,6 +239,23 @@
                         }
                     };
 
+                    this.sayCount = 0;
+                    this.saidMessage = null;
+                    this.sayAndWait = async function(saidMessage, waitAmount) {
+                        this.sayCount += 1;
+                        const prevSayCount = this.sayCount;
+
+                        this.saidMessage = saidMessage;
+                        await sleep(waitAmount);
+
+                        // If nothing else was said while waiting, clear the current speech.
+                        // If something was said, don't clear the current speech-
+                        // it was overridden by the new speech.
+                        if (this.sayCount === prevSayCount) {
+                            this.saidMessage = null;
+                        }
+                    };
+
                     // Scratch direction is weird. The "direction" in Scratch is
                     // stored in degrees, and it is the mathematical direction minus
                     // 90 degrees. We always store the mathematical direction (in degrees).
@@ -434,6 +451,31 @@
                             } catch {}
 
                             ctx.restore();
+
+                            if (this.saidMessage !== null) {
+                                ctx.globalAlpha = 1;
+
+                                ctx.save();
+                                ctx.translate(this.x, this.y);
+
+                                ctx.scale(scaleXM * ((this.size / 100) / bitmapResolution), (this.size / 100) / bitmapResolution);
+
+                                ctx.translate(-this.x, -this.y);
+
+                                ctx.font = "30px sans-serif";
+                                const textWidth = ctx.measureText(this.saidMessage).width;
+
+                                // Draw rectangle behind text
+                                ctx.fillStyle = "black";
+                                ctx.fillRect(this.calcX + image.width + 3, this.calcY - 30, textWidth + 19, 46);
+                                ctx.fillStyle = "white";
+                                ctx.fillRect(this.calcX + image.width + 5, this.calcY - 28, textWidth + 15, 42);
+
+                                ctx.fillStyle = "black";
+                                ctx.fillText(this.saidMessage, this.calcX + image.width + 10, this.calcY + 5);
+
+                                ctx.restore();
+                            }
                         }
                     };
 

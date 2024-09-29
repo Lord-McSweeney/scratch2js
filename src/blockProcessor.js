@@ -557,10 +557,18 @@ function processBlock(block, blocks, tabLevel) {
             }
             break;
 
+        case "looks_sayforsecs":
+            {
+                let message = getValueFromInput(inputs.MESSAGE, blocks, ANY_TYPE);
+                let duration = getValueFromInput(inputs.SECS, blocks, ENSURE_NUMERIC);
+                emitStatement("await this.sayAndWait(" + message + ", " + duration + " * 1000)");
+            }
+            break;
+
         case "control_wait":
             {
                 let duration = getValueFromInput(inputs.DURATION, blocks, ENSURE_NUMERIC);
-                emitStatement("await new Promise((resolve) => setTimeout(resolve, " + (duration * 1000) + "));");
+                emitStatement("await new Promise((resolve) => setTimeout(resolve, " + duration + " * 1000));");
             }
             break;
 
