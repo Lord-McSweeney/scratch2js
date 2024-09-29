@@ -236,12 +236,29 @@ function processValueBlock(block, blocks) {
             }
             break;
 
+        case "sensing_touchingobject":
+            const menuBlock = blocks[block.inputs.TOUCHINGOBJECTMENU[1]];
+            if (menuBlock.opcode !== "sensing_touchingobjectmenu") {
+                error("Unknown or unimplemented sensing_touchingobject menu");
+                return "false";
+            }
+
+            const touchingInfo = menuBlock.fields.TOUCHINGOBJECTMENU[0];
+            if (touchingInfo === "_mouse_") {
+                return "(await this.intersectsPoint(mouseX, mouseY))";
+            } else {
+                error("Unknown or unimplemented object specified in sensing_touchingobjectmenu");
+                return "false";
+            }
+            break;
+
         // Is there a difference between these two outside of the IDE?
         case "argument_reporter_boolean":
         case "argument_reporter_string_number":
             {
                 // `argsMethodArgs` and `argsArgMapping` are only available within a defined method;
-                // this block will error if used outside of a method definition.
+                // this block will error if used outside of a method definition. You actually can do so
+                // in Scratch (the block will simply always return 0), and this is actually used.
                 const argName = block.fields.VALUE[0];
                 return "argsMethodArgs[argsArgMapping.indexOf(\"" + sanitizeString(argName) + "\")]";
             }

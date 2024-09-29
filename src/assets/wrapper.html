@@ -119,6 +119,13 @@
                 }
             }
 
+            function getMatrixTransformedPoint(point, matrix) {
+                return {
+                    x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+                    y: matrix.b * point.x + matrix.d * point.y + matrix.f
+                };
+            }
+
             let doRender = function() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -387,6 +394,31 @@
                         this.calcY = this.y - this.costumes[this.currentCostume].rotationCenterY;
                     };
 
+                    // FIXME: This should render the sprite to a canvas, then check
+                    // if the target pixel isn't RGBA (0,0,0,0) instead of calculating
+                    // a bounding box
+                    this.bbox = { leftBound: 0, rightBound: 0, topBound: 0, bottomBound: 0 };
+                    this.intersectsPoint = async function(px, py) {
+                        const bitmapResolution = this.costumes[this.currentCostume].bitmapResolution;
+
+                        let costumeImage = this.cachedCostumeImages.get(this.currentCostume);
+                        if (costumeImage === undefined) {
+                            // Ensure the image is loaded
+                            await this.changeCostumeByIndex(this.currentCostume);
+                            costumeImage = this.cachedCostumeImages.get(this.currentCostume);
+                        }
+
+                        this.recalcCoords();
+
+                        const { leftBound, rightBound, topBound, bottomBound } = this.bbox;
+
+                        if (px >= leftBound && px <= rightBound && py >= topBound && py <= bottomBound) {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    };
+
                     this.getDirectionAndScaleXMultiplier = function() {
                         switch (this.rotationStyle) {
                             case "all around":
@@ -423,7 +455,7 @@
                             } catch {}
 
                             ctx.restore();
-                        } else if (this.visible) {
+                        } else {
                             this.recalcCoords();
                             let { direction, scaleXM } = this.getDirectionAndScaleXMultiplier();
 
@@ -446,10 +478,25 @@
                                 ctx.translate(-this.x, -this.y);
                             }
 
-                            // Actually draw the image
-                            try {
-                                ctx.drawImage(image, Math.floor(this.calcX), Math.floor(this.calcY));
-                            } catch {}
+                            // We need to do bbox calculations even if the sprite is invisible
+                            // FIXME: This is wrong, we shouldn't do this calculation only after a render
+                            const matrix = ctx.getTransform();
+                            const topLeft = getMatrixTransformedPoint({x: this.calcX, y: this.calcY}, matrix);
+                            const bottomRight = getMatrixTransformedPoint({x: this.calcX + image.width, y: this.calcY + image.height}, matrix);
+
+                            this.bbox = {
+                                leftBound: topLeft.x,
+                                topBound: topLeft.y,
+                                rightBound: bottomRight.x,
+                                bottomBound: bottomRight.y,
+                            };
+
+                            if (this.visible) {
+                                // Actually draw the image
+                                try {
+                                    ctx.drawImage(image, Math.floor(this.calcX), Math.floor(this.calcY));
+                                } catch {}
+                            }
 
                             ctx.restore();
                         }
