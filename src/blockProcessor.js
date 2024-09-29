@@ -240,10 +240,10 @@ function processValueBlock(block, blocks) {
         case "argument_reporter_boolean":
         case "argument_reporter_string_number":
             {
-                // `methodArgs` and `argMapping` are only available within a defined method;
+                // `argsMethodArgs` and `argsArgMapping` are only available within a defined method;
                 // this block will error if used outside of a method definition.
                 const argName = block.fields.VALUE[0];
-                return "methodArgs[argMapping.indexOf(\"" + sanitizeString(argName) + "\")]";
+                return "argsMethodArgs[argsArgMapping.indexOf(\"" + sanitizeString(argName) + "\")]";
             }
 
         default:
@@ -986,7 +986,7 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
                 currentBlockCode += "    ".repeat(tabLevel) + "this.definedProcedures.set(" + procName + ", {\n";
                 tabLevel ++;
 
-                currentBlockCode += "    ".repeat(tabLevel) + "method: (async function(methodArgs, argMapping) {\n";
+                currentBlockCode += "    ".repeat(tabLevel) + "method: (async function(argsMethodArgs, argsArgMapping) {\n";
                 tabLevel ++;
 
                 if (block.next !== null) {
