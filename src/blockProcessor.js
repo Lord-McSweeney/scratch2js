@@ -145,6 +145,13 @@ function processValueBlock(block, blocks) {
                 return "(" + operand + ".toString().length)";
             }
 
+        case "operator_letter_of":
+            {
+                const index = getValueFromInput(inputs.LETTER, blocks, ENSURE_NUMERIC);
+                const string = getValueFromInput(inputs.STRING, blocks, ANY_TYPE);
+                return "(" + string + ".toString().charAt(" + index + " - 1))";
+            }
+
         case "looks_size":
             {
                 return "this.size";
@@ -247,6 +254,10 @@ function getValueFromInput(input, blocks, type) {
         warn("getValueFromInput passed empty input");
         return "null";
     } else if (input[0] === 1) {
+        if (input[1] === null) {
+            return "null";
+        }
+
         switch(input[1][0]) {
             case 4:
             case 5:
