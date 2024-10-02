@@ -53,7 +53,7 @@ function convertStageTarget(targetInfo) {
         }
 
         code += `
-        globalVariables.set("${sanitizeString(i)}", ${realString});
+                globalVariables.set("${sanitizeString(i)}", ${realString});
 `;
     }
 
@@ -63,31 +63,31 @@ function convertStageTarget(targetInfo) {
         const list = lists[i];
 
         code += `
-        globalLists.set("${sanitizeString(i)}", ${JSON.stringify(list[1])});
+                globalLists.set("${sanitizeString(i)}", ${JSON.stringify(list[1])});
 `;
     }
 
     // Finally, create stage constructor
     code += `
-        targets.push({
-            ctor: createSpriteConstructor(
-                "${sanitizeString(targetInfo.name)}",
-                240,
-                180,
-                100,
-                0,
-                ${JSON.stringify(targetInfo.costumes)},
-                ${targetInfo.currentCostume},
-                "all around",
-                {},
-                {},
-                true,
-                function(isClone) {
+                targets.push({
+                    ctor: await createSpriteConstructor(
+                        "${sanitizeString(targetInfo.name)}",
+                        240,
+                        180,
+                        100,
+                        0,
+                        ${JSON.stringify(targetInfo.costumes)},
+                        ${targetInfo.currentCostume},
+                        "all around",
+                        {},
+                        {},
+                        true,
+                        function(isClone) {
 ${runnableCode}
-                }
-            ),
-            visible: true,
-        });
+                        }
+                    ),
+                    visible: true,
+                });
 `;
 
     return code;
@@ -122,25 +122,25 @@ function convertTarget(targetInfo) {
 
     // Create sprite constructor
     let code = `
-        targets.push({
-            ctor: createSpriteConstructor(
-                "${sanitizeString(targetInfo.name)}",
-                ${240 + targetInfo.x},
-                ${180 - targetInfo.y},
-                ${targetInfo.size},
-                ${targetInfo.direction - 90},
-                ${JSON.stringify(targetInfo.costumes)},
-                ${targetInfo.currentCostume},
-                "${sanitizeString(targetInfo.rotationStyle)}",
-                ${JSON.stringify(resultVariables)},
-                ${JSON.stringify(resultLists)},
-                false,
-                function(isClone) {
+                targets.push({
+                    ctor: await createSpriteConstructor(
+                        "${sanitizeString(targetInfo.name)}",
+                        ${240 + targetInfo.x},
+                        ${180 - targetInfo.y},
+                        ${targetInfo.size},
+                        ${targetInfo.direction - 90},
+                        ${JSON.stringify(targetInfo.costumes)},
+                        ${targetInfo.currentCostume},
+                        "${sanitizeString(targetInfo.rotationStyle)}",
+                        ${JSON.stringify(resultVariables)},
+                        ${JSON.stringify(resultLists)},
+                        false,
+                        function(isClone) {
 ${runnableCode}
-                }
-            ),
-            visible: ${targetInfo.visible},
-        });
+                        }
+                    ),
+                    visible: ${targetInfo.visible},
+                });
 `;
 
     return code;

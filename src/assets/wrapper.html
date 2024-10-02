@@ -155,9 +155,8 @@
 
                 setTimeout(renderWrapper, usedTime);
             }
-            setTimeout(renderWrapper, 30);
 
-            let createSpriteConstructor = function(
+            let createSpriteConstructor = async function(
                 name,
                 x,
                 y,
@@ -172,6 +171,30 @@
 
                 onInitCode,
             ) {
+                const costumeImages = new Map();
+
+                for (let i = 0; i < costumes.length; i ++) {
+                    const image = new Image();
+                    const canvas = document.createElement("canvas");
+
+                    await new Promise(function(resolve, reject) {
+                        image.onload = function(e) {
+                            // Wait for image to load
+                            canvas.width = image.width;
+                            canvas.height = image.height;
+                            canvas.getContext('2d').drawImage(image, 0, 0);
+                            resolve();
+                        };
+
+                        // If it takes more than 5 seconds to load, reject
+                        setTimeout(reject, 5000);
+
+                        image.src = costumes[i].md5ext;
+                    });
+
+                    costumeImages.set(i, canvas);
+                }
+
                 return function(isClone, visible) {
                     console.log("Instantiating sprite \"" + name + "\" (clone: " + isClone + ")");
                     this.createSelf = arguments.callee;
@@ -188,7 +211,6 @@
                     this.rotationStyle = rotationStyle;
                     this.isStage = isStage;
                     this.visible = visible;
-                    this.cachedCostumeImages = new Map();
                     this.effects = {
                         ghost: 0,
                         brightness: 0,
@@ -348,13 +370,13 @@
                             next = 0;
                         }
 
-                        await this.changeCostumeByIndex(next);
+                        this.changeCostumeByIndex(next);
                     };
 
-                    this.changeCostume = async function(name) {
+                    this.changeCostume = function(name) {
                         if (typeof name === "number") {
                             // Weirdly enough, this rounds the costume index
-                            await this.changeCostumeByIndex(Math.round(name) - 1);
+                            this.changeCostumeByIndex(Math.round(name) - 1);
                             return;
                         }
 
@@ -367,40 +389,16 @@
                             }
                         }
 
-                        await this.changeCostumeByIndex(costumeIndex);
+                        this.changeCostumeByIndex(costumeIndex);
                     };
 
-                    this.changeCostumeByIndex = async function(index) {
+                    this.changeCostumeByIndex = function(index) {
                         if (index < 0 || index >= this.costumes.length) {
                             // Just silently bail out for invalid costumes.
                             return;
                         }
                         this.currentCostume = index;
                         this.recalcCoords();
-
-                        if (!this.cachedCostumeImages.has(index)) {
-                            const image = new Image();
-                            const canvas = document.createElement("canvas");
-
-                            const costumesStored = this.costumes;
-
-                            await new Promise(function(resolve, reject) {
-                                image.onload = function(e) {
-                                    // Wait for image to load
-                                    canvas.width = image.width;
-                                    canvas.height = image.height;
-                                    canvas.getContext('2d').drawImage(image, 0, 0);
-                                    resolve();
-                                };
-
-                                // If it takes more than 5 seconds to load, reject
-                                setTimeout(reject, 5000);
-
-                                image.src = costumesStored[index].md5ext;
-                            });
-
-                            this.cachedCostumeImages.set(index, canvas);
-                        }
                     };
 
                     this.recalcCoords = function() {
@@ -415,12 +413,7 @@
                     this.intersectsPoint = async function(px, py) {
                         const bitmapResolution = this.costumes[this.currentCostume].bitmapResolution;
 
-                        let costumeImage = this.cachedCostumeImages.get(this.currentCostume);
-                        if (costumeImage === undefined) {
-                            // Ensure the image is loaded
-                            await this.changeCostumeByIndex(this.currentCostume);
-                            costumeImage = this.cachedCostumeImages.get(this.currentCostume);
-                        }
+                        let costumeImage = costumeImages.get(this.currentCostume);
 
                         this.recalcCoords();
 
@@ -450,12 +443,7 @@
 
                     this.render = async function() {
                         const bitmapResolution = this.costumes[this.currentCostume].bitmapResolution;
-                        let image = this.cachedCostumeImages.get(this.currentCostume);
-                        if (image === undefined) {
-                            // Ensure the image is loaded
-                            await this.changeCostumeByIndex(this.currentCostume);
-                            image = this.cachedCostumeImages.get(this.currentCostume);
-                        }
+                        let image = costumeImages.get(this.currentCostume);
 
                         if (this.isStage) {
                             ctx.save();
@@ -520,8 +508,10 @@
                     this.onInitCode(isClone);
 
                     this.waitForInit = async function() {
-                        // Initialize costume
+                        // Load costumes
+
                         await this.changeCostumeByIndex(this.currentCostume);
+
                         if (isClone) {
                             for (let i in this.onStartAsClone) {
                                 this.onStartAsClone[i]();
@@ -531,7 +521,12 @@
                 };
             };
 
-            ##code##
+            async function loadSprites() {
+                ctx.textAlign = "center";
+                ctx.font = "48px Arial";
+                ctx.fillText("Loading assets...", 240, 180);
+                ##code##
+            }
 
             async function initPrimordialSprites() {
                 for (let i in targets) {
@@ -545,7 +540,15 @@
                 }
             }
 
-            initPrimordialSprites();
+            async function main() {
+                // These MUST be in order
+                await loadSprites();
+                await initPrimordialSprites();
+
+                setTimeout(renderWrapper, 30);
+            }
+
+            main();
 
             document.getElementById("start").onclick = function() {
                 for (let i in onStartListeners) {

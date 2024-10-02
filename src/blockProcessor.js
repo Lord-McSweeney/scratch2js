@@ -493,7 +493,7 @@ function processBlock(block, blocks, tabLevel) {
                         }
                     } else if (costume.length === 3 && costume[0] === 3) {
                         const data = getValueFromInput(costume, blocks, ANY_TYPE);
-                        emitStatement("await this.changeCostume(" + data + ");");
+                        emitStatement("this.changeCostume(" + data + ");");
                     } else {
                         fatal("Unknown or unimplemented inputs.COSTUME handling");
                     }
@@ -513,7 +513,7 @@ function processBlock(block, blocks, tabLevel) {
 
         case "looks_nextcostume":
             {
-                emitStatement("await this.nextCostume();");
+                emitStatement("this.nextCostume();");
             }
             break;
 
@@ -976,7 +976,7 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
     for (let i in toplevelBlocks) {
         let currentBlockCode = "";
         let block = toplevelBlocks[i];
-        let tabLevel = 5;
+        let tabLevel = 7;
         switch (block.opcode) {
             case "event_whenflagclicked":
                 currentBlockCode += "    ".repeat(tabLevel) + "onStartListeners.push((async function() {\n";
