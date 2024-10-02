@@ -8,9 +8,11 @@ Procedure argument defaults
 
 Advanced list usage
 
-Stop (all/this sprite)
+Stop (all/this script)
 
-sprite-sprite/point-sprite intersections
+sprite-sprite intersections
+
+procInfo outside of function, should simply return 0 for all values (used to detect TurboWarp, which returns 1 for all values instead)
 */
 
 const fs = require("fs");
@@ -166,7 +168,8 @@ function convertProject(projectData) {
         }
     }
 
-    return fs.readFileSync(assetPath + "wrapper.html").toString().replace("##code##", code);
+    // DO NOT USE String.prototype.replace HERE- SPECIAL $ REPLACEMENT CHARACTERS MUST BE SANITIZED
+    return fs.readFileSync(assetPath + "wrapper.html").toString().split("##code##").join(code);
 }
 
 async function main() {

@@ -109,6 +109,8 @@ function processValueBlock(block, blocks) {
                 switch(operator) {
                     case "abs":
                         return "Math.abs(" + operand + ")";
+                    case "atan":
+                        return "Math.atan(" + operand + ") * (180 / Math.PI)";
                     case "ceiling":
                         return "Math.ceil(" + operand + ")";
                     case "cos":
@@ -119,6 +121,8 @@ function processValueBlock(block, blocks) {
                         return "Math.sin((Math.PI / 180) * " + operand + ")";
                     case "sqrt":
                         return "Math.sqrt(" + operand + ")";
+                    case "tan":
+                        return "Math.tan((Math.PI / 180) * " + operand + ")";
 
                     default:
                         fatal("Unimplemented mathop \"" + operator + "\"");
@@ -820,8 +824,10 @@ function processBlock(block, blocks, tabLevel) {
                         break;
                     } else if (substack.length !== 2) {
                         fatal("Unknown or unimplemented inputs.SUBSTACK2 info");
-                    } else if (substack[0] !== 2) {
-                        fatal("Unknown or unimplemented inputs.SUBSTACK2 magics");
+                    } else if (substack[1] === null) {
+                        emitStatement("   // (empty)");
+                        emitStatement("}");
+                        break;
                     }
 
                     tabLevel ++;
