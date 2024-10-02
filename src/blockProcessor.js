@@ -625,7 +625,7 @@ function processBlock(block, blocks, tabLevel) {
             {
                 let message = getValueFromInput(inputs.MESSAGE, blocks, ANY_TYPE);
                 let duration = getValueFromInput(inputs.SECS, blocks, ENSURE_NUMERIC);
-                emitStatement("await this.sayAndWait(" + message + ", " + duration + " * 1000)");
+                emitStatement("await this.sayAndWait(" + message + ", " + duration + " * 1000);");
             }
             break;
 
