@@ -6,7 +6,7 @@ in the loop body (even if it's a no-op)
 
 Procedure argument defaults
 
-List variables
+Advanced list usage
 
 Stop (all/this sprite)
 
@@ -57,6 +57,16 @@ function convertStageTarget(targetInfo) {
 `;
     }
 
+    // Initialize global lists
+    const lists = targetInfo.lists;
+    for (let i in lists) {
+        const list = lists[i];
+
+        code += `
+        globalLists.set("${sanitizeString(i)}", ${JSON.stringify(list[1])});
+`;
+    }
+
     // Finally, create stage constructor
     code += `
         targets.push({
@@ -69,6 +79,7 @@ function convertStageTarget(targetInfo) {
                 ${JSON.stringify(targetInfo.costumes)},
                 ${targetInfo.currentCostume},
                 "all around",
+                {},
                 {},
                 true,
                 function(isClone) {
@@ -102,6 +113,13 @@ function convertTarget(targetInfo) {
         resultVariables[i] = variables[i][1];
     }
 
+    // Initialize local lists
+    const lists = targetInfo.lists;
+    const resultLists = {};
+    for (let i in lists) {
+        resultLists[i] = lists[i][1];
+    }
+
     // Create sprite constructor
     let code = `
         targets.push({
@@ -115,6 +133,7 @@ function convertTarget(targetInfo) {
                 ${targetInfo.currentCostume},
                 "${sanitizeString(targetInfo.rotationStyle)}",
                 ${JSON.stringify(resultVariables)},
+                ${JSON.stringify(resultLists)},
                 false,
                 function(isClone) {
 ${runnableCode}

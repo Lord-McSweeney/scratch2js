@@ -15,6 +15,7 @@
             let stageSprite = null;
 
             const globalVariables = new Map();
+            const globalLists = new Map();
 
             const onStartListeners = [];
             const broadcastListeners = [];
@@ -166,6 +167,7 @@
                 currentCostume,
                 rotationStyle,
                 localVariables,
+                localLists,
                 isStage,
 
                 onInitCode,
@@ -194,8 +196,8 @@
 
                     this.definedProcedures = new Map();
 
+                    // Variables
                     this.localVariables = new Map(Object.entries(localVariables));
-
                     this.getVariable = function(varName) {
                         if (globalVariables.has(varName)) {
                             let result = globalVariables.get(varName);
@@ -213,7 +215,6 @@
                             return result;
                         }
                     };
-
                     this.changeVariableBy = function(varName, increase) {
                         if (globalVariables.has(varName)) {
                             let oldValue = parseFloat(globalVariables.get(varName).toString());
@@ -234,7 +235,6 @@
                             this.localVariables.set(varName, oldValue + increase);
                         }
                     };
-
                     this.setVariable = function(varName, value) {
                         if (globalVariables.has(varName)) {
                             globalVariables.set(varName, value);
@@ -246,6 +246,20 @@
                         }
                     };
 
+                    // Lists
+                    this.localLists = new Map(Object.entries(localLists));
+                    this.getListReference = function(listName) {
+                        if (globalLists.has(listName)) {
+                            return globalLists.get(listName);
+                        } else if (this.isStage) {
+                            throw new Error("Tried to get nonexistent list");
+                        } else {
+                            // TODO local/global priority
+                            return this.localLists.get(listName);
+                        }
+                    };
+
+                    // Speech
                     this.sayCount = 0;
                     this.saidMessage = null;
                     this.sayAndWait = async function(saidMessage, waitAmount) {

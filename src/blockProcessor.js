@@ -263,6 +263,23 @@ function processValueBlock(block, blocks) {
                 return "argsMethodArgs[argsArgMapping.indexOf(\"" + sanitizeString(argName) + "\")]";
             }
 
+        case "data_itemoflist":
+            {
+                const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
+                const index = getValueFromInput(inputs.INDEX, blocks, ENSURE_NUMERIC);
+
+                return "this.getListReference(" + listName + ")[" + index + " - 1]";
+            }
+            break;
+
+        case "data_lengthoflist":
+            {
+                const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
+
+                return "this.getListReference(" + listName + ").length";
+            }
+            break;
+
         default:
             debug(block);
             error("Unknown or unimplemented value block '" + block.opcode + "'");
@@ -283,6 +300,7 @@ function getValueFromInput(input, blocks, type) {
             case 4:
             case 5:
             case 6:
+            case 7:
             case 8:
             case 10:
                 if (type === ENSURE_NUMERIC) {
@@ -876,6 +894,37 @@ function processBlock(block, blocks, tabLevel) {
                 const value = getValueFromInput(inputs.VALUE, blocks, ENSURE_NUMERIC);
 
                 emitStatement("this.changeVariableBy(" + variableName + ", " + value + ");");
+            }
+            break;
+
+        case "data_addtolist":
+            {
+                const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
+                const value = getValueFromInput(inputs.ITEM, blocks, ANY_TYPE);
+
+                emitStatement("this.getListReference(" + listName + ").push(" + value + ");");
+            }
+            break;
+
+        case "data_deletealloflist":
+            {
+                const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
+
+                emitStatement("this.getListReference(" + listName + ").length = 0;");
+            }
+            break;
+
+        case "data_insertatlist":
+            {
+                const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
+                const value = getValueFromInput(inputs.ITEM, blocks, ANY_TYPE);
+                const index = getValueFromInput(inputs.INDEX, blocks, ENSURE_NUMERIC);
+
+                emitStatement("const listRef = this.getListReference(" + listName + ");");
+                emitStatement("const index = " + index + " - 1;");
+                emitStatement("if (index >= 0 && index <= listRef.length) {");
+                emitStatement("    listRef.splice(index, 0, " + value + ");");
+                emitStatement("}");
             }
             break;
 
