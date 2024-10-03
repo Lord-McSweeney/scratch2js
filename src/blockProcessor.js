@@ -465,7 +465,8 @@ function processBlock(block, blocks, tabLevel) {
         case "motion_pointindirection":
             {
                 const direction = getValueFromInput(inputs.DIRECTION, blocks, ENSURE_NUMERIC);
-                emitStatement("this.direction = " + direction + " - 90;");
+                emitStatement("const direction = " + direction + ";");
+                emitStatement("this.direction = (90 - direction > 0) ? (90 - direction) : (450 - direction);");
             }
             break;
 
