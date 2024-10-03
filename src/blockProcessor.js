@@ -953,14 +953,18 @@ function processBlock(block, blocks, tabLevel) {
                 const mutationInfo = block.mutation;
                 const argumentIds = JSON.parse(mutationInfo.argumentids);
                 const procName = "\"" + sanitizeString(mutationInfo.proccode) + "\"";
-                emitStatement("const procInfo = this.definedProcedures.get(" + procName + ")");
+                emitStatement("const procInfo = this.definedProcedures.get(" + procName + ");");
                 emitStatement("const methodArgs = [");
                 for (let i in argumentIds) {
                     const value = getValueFromInput(inputs[argumentIds[i]], blocks, ANY_TYPE);
                     emitStatement("    " + value + ",");
                 }
                 emitStatement("];");
-                emitStatement("await (procInfo.method)(methodArgs, procInfo.argumentnames);");
+
+                // The IDE allows using the backpack feature to reference undefined methods
+                emitStatement("if (procInfo) {");
+                emitStatement("    await (procInfo.method)(methodArgs, procInfo.argumentnames);");
+                emitStatement("}");
             }
             break;
 
@@ -1087,7 +1091,10 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
                     !block.opcode.startsWith("sound_") &&
                     !block.opcode.startsWith("control_") &&
                     !block.opcode.startsWith("sensing_") &&
-                    !block.opcode.startsWith("operator_")
+                    !block.opcode.startsWith("operator_") &&
+                    !block.opcode.startsWith("data_") &&
+                    !block.opcode.startsWith("procedures_") &&
+                    !block.opcode.startsWith("argument_")
                 ) {
                     warn("Unknown or unimplemented toplevel block '" + block.opcode + "'");
                 }
