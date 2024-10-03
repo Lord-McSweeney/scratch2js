@@ -1,3 +1,5 @@
+/// Processes blocks, turning them into code referencing functions provided by wrapper.html.
+
 const { sanitizeString } = require("./utils.js");
 const { debug, info, warn, error, fatal } = require("./logging.js");
 
@@ -1108,4 +1110,4 @@ function processToplevelBlocks(allBlocks, toplevelBlocks) {
     return resultingCode;
 }
 
-module.exports = { processBlock, processToplevelBlocks };
+module.exports = { processToplevelBlocks };

@@ -1,6 +1,8 @@
+/// Converts an SB3 project.json to JS using processToplevelBlocks and creating sprite constructors.
+
 const { sanitizeString } = require("./utils.js");
 const { debug, info, warn, error, fatal } = require("./logging.js");
-const { processBlock, processToplevelBlocks } = require("./blockProcessor.js");
+const { processToplevelBlocks } = require("./blockProcessor.js");
 
 function convertStageTarget(targetInfo) {
     let runnableCode = "";

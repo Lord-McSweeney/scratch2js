@@ -1,3 +1,5 @@
+/// Reads and unzips an SB3 file, passing it to convertProject.
+
 /*
 TODO
 
