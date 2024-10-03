@@ -182,11 +182,22 @@ async function main() {
     info("Making temp directory...");
     fs.mkdirSync("/tmp/scratch-extraction/");
 
-    info("Copying sb3 file...");
-    fs.copyFileSync(sb3file, "/tmp/scratch-extraction/file.sb3");
+    function cleanup() {
+        info("Cleaning up...");
+        fs.rmSync("/tmp/scratch-extraction/", {recursive: true});
+    }
 
-    info("Extracting files...");
-    await exec("unzip -o /tmp/scratch-extraction/file.sb3 -d " + "/tmp/scratch-extraction/");
+    try {
+        info("Copying sb3 file...");
+        fs.copyFileSync(sb3file, "/tmp/scratch-extraction/file.sb3");
+
+        info("Extracting files...");
+        await exec("unzip -o /tmp/scratch-extraction/file.sb3 -d " + "/tmp/scratch-extraction/");
+    } catch(e) {
+        console.log(e);
+        cleanup();
+        return;
+    }
 
     info("Removing original sb3 file from temp directory...");
     fs.unlinkSync("/tmp/scratch-extraction/file.sb3");
@@ -214,14 +225,13 @@ async function main() {
                 }
             }
         }
+
+        info("Done!");
     } catch(e) {
         console.log(e);
     }
 
-    info("Done!");
-
-    info("Cleaning up...");
-    fs.rmSync("/tmp/scratch-extraction/", {recursive: true});
+    cleanup();
 }
 
 main();
