@@ -278,6 +278,24 @@ function processValueBlock(block, blocks) {
             }
             break;
 
+        case "data_itemnumoflist":
+            {
+                const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
+                const value = getValueFromInput(inputs.ITEM, blocks, ANY_TYPE);
+
+                return "(this.getListReference(" + listName + ").indexOf(" + value + ") + 1)";
+            }
+            break;
+
+        case "data_listcontainsitem":
+            {
+                const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
+                const value = getValueFromInput(inputs.ITEM, blocks, ANY_TYPE);
+
+                return "this.getListReference(" + listName + ").includes(" + value + ")";
+            }
+            break;
+
         case "data_lengthoflist":
             {
                 const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
@@ -933,6 +951,33 @@ function processBlock(block, blocks, tabLevel) {
                 emitStatement("const index = " + index + " - 1;");
                 emitStatement("if (index >= 0 && index <= listRef.length) {");
                 emitStatement("    listRef.splice(index, 0, " + value + ");");
+                emitStatement("}");
+            }
+            break;
+
+        case "data_replaceitemoflist":
+            {
+                const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
+                const value = getValueFromInput(inputs.ITEM, blocks, ANY_TYPE);
+                const index = getValueFromInput(inputs.INDEX, blocks, ENSURE_NUMERIC);
+
+                emitStatement("const listRef = this.getListReference(" + listName + ");");
+                emitStatement("const index = " + index + " - 1;");
+                emitStatement("if (index >= 0 && index < listRef.length) {");
+                emitStatement("    listRef[index] = " + value + ";");
+                emitStatement("}");
+            }
+            break;
+
+        case "data_deleteoflist":
+            {
+                const listName = "\"" + sanitizeString(fields.LIST[1]) + "\"";
+                const index = getValueFromInput(inputs.INDEX, blocks, ENSURE_NUMERIC);
+
+                emitStatement("const listRef = this.getListReference(" + listName + ");");
+                emitStatement("const index = " + index + " - 1;");
+                emitStatement("if (index >= 0 && index < listRef.length) {");
+                emitStatement("    listRef.splice(index, 1);");
                 emitStatement("}");
             }
             break;
