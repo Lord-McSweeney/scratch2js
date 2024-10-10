@@ -513,7 +513,7 @@ function processBlock(block, blocks, tabLevel) {
                                 fatal("Invalid looks_costume COSTUME magics");
                             } else {
                                 let realCostume = costumeData[0];
-                                emitStatement("await this.changeCostume(\"" + sanitizeString(realCostume) + "\");");
+                                emitStatement("this.changeCostume(\"" + sanitizeString(realCostume) + "\");");
                             }
                         }
                     } else if (costume.length === 3 && costume[0] === 3) {
@@ -629,12 +629,12 @@ function processBlock(block, blocks, tabLevel) {
                                 fatal("Invalid looks_backdrops BACKDROP magics");
                             } else {
                                 let realBackdrop = backdropData[0];
-                                emitStatement("await stageSprite.changeCostume(\"" + sanitizeString(realBackdrop) + "\");");
+                                emitStatement("stageSprite.changeCostume(\"" + sanitizeString(realBackdrop) + "\");");
                             }
                         }
                     } else if (backdrop.length === 3 && backdrop[0] === 3) {
                         const data = getValueFromInput(backdrop, blocks, ANY_TYPE);
-                        emitStatement("await stageSprite.changeCostume(" + data + ");");
+                        emitStatement("stageSprite.changeCostume(" + data + ");");
                     } else {
                         fatal("Unknown or unimplemented inputs.BACKDROP handling");
                     }
