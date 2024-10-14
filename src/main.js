@@ -8,7 +8,7 @@ in the loop body (even if it's a no-op)
 
 Procedure argument defaults
 
-Advanced list usage
+Case insensitivity
 
 Stop (all/this script)
 
